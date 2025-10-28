@@ -1,0 +1,1112 @@
+================================================================================
+DEVICETIMEMANAGER_FB - COMPLETE PACKAGE
+================================================================================
+
+This package contains all files needed for the DeviceTimeManager_FB function block.
+
+IMPORT ORDER (Important!):
+1. UDT_DeviceWorkTime.scl
+2. UDT_DeviceTimeManager.scl
+3. DeviceTimeManager_FB.scl
+4. DeviceTimeManager_FB_Examples.scl (optional)
+
+================================================================================
+FILE 1: UDT_DeviceWorkTime.scl
+================================================================================
+
+TYPE "UDT_DeviceWorkTime"
+VERSION : 1.0
+   STRUCT
+      Years : UDInt := 0;                  // Years of operation
+      Months : UDInt := 0;                 // Months of operation (0-11)
+      Weeks : UDInt := 0;                  // Weeks of operation (0-51)
+      Days : UDInt := 0;                   // Days of operation (0-6)
+      Hours : UDInt := 0;                  // Hours of operation (0-23)
+      Minutes : UDInt := 0;                // Minutes of operation (0-59)
+      Seconds : UDInt := 0;                // Seconds of operation (0-59)
+      TotalSeconds : ULInt := 0;           // Total seconds for comparison (calculated internally)
+   END_STRUCT;
+
+END_TYPE
+
+
+================================================================================
+FILE 2: UDT_DeviceTimeManager.scl
+================================================================================
+
+TYPE "UDT_DeviceTimeManager"
+VERSION : 1.0
+   STRUCT
+      // =====================================================================
+      // CONFIGURATION (Input Section)
+      // =====================================================================
+      Config : Struct
+         Enable : Bool := true;              // Enable/Disable the function block
+         NumberOfDevicesToRun : Int := 0;    // Number of devices to run simultaneously (0-10)
+         ToggleSignal : Bool;                // Signal to switch device groups (from General_FB)
+         ResetWorkTimes : Bool;              // Reset all device work times to zero
+      END_STRUCT;
+
+      // =====================================================================
+      // DEVICE OUTPUTS (Start Commands and Status)
+      // =====================================================================
+      DeviceOutputs : Struct
+         Device1_StartCommand : Bool;        // Start command for Device 1
+         Device1_IsRunning : Bool;           // Device 1 is currently running
+
+         Device2_StartCommand : Bool;        // Start command for Device 2
+         Device2_IsRunning : Bool;           // Device 2 is currently running
+
+         Device3_StartCommand : Bool;        // Start command for Device 3
+         Device3_IsRunning : Bool;           // Device 3 is currently running
+
+         Device4_StartCommand : Bool;        // Start command for Device 4
+         Device4_IsRunning : Bool;           // Device 4 is currently running
+
+         Device5_StartCommand : Bool;        // Start command for Device 5
+         Device5_IsRunning : Bool;           // Device 5 is currently running
+
+         Device6_StartCommand : Bool;        // Start command for Device 6
+         Device6_IsRunning : Bool;           // Device 6 is currently running
+
+         Device7_StartCommand : Bool;        // Start command for Device 7
+         Device7_IsRunning : Bool;           // Device 7 is currently running
+
+         Device8_StartCommand : Bool;        // Start command for Device 8
+         Device8_IsRunning : Bool;           // Device 8 is currently running
+
+         Device9_StartCommand : Bool;        // Start command for Device 9
+         Device9_IsRunning : Bool;           // Device 9 is currently running
+
+         Device10_StartCommand : Bool;       // Start command for Device 10
+         Device10_IsRunning : Bool;          // Device 10 is currently running
+      END_STRUCT;
+
+      // =====================================================================
+      // STATUS INFORMATION (Output Section)
+      // =====================================================================
+      Status : Struct
+         IsEnabled : Bool;                   // FB is enabled
+         IsInitialized : Bool;               // FB is initialized
+         ActiveDeviceCount : Int;            // Number of devices currently running
+         ReadyDeviceCount : Int;             // Number of ready devices available
+         InsufficientDevices : Bool;         // Warning: Not enough ready devices
+         RequestedDeviceCount : Int;         // Requested number of devices
+         MissingDeviceCount : Int;           // Number of missing devices (Requested - Active)
+         ToggleState : Bool;                 // Current toggle state
+         ToggleChangeDetected : Bool;        // Toggle signal has changed
+         LastError : Int;                    // Last error code (0 = no error)
+      END_STRUCT;
+
+      // =====================================================================
+      // INTERNAL DATA (Not for external use)
+      // =====================================================================
+      Internal : Struct
+         Initialized : Bool;                 // Initialization flag
+         PreviousToggleSignal : Bool;        // Previous toggle signal state
+         ToggleCount : UDInt;                // Number of toggle changes
+         CurrentGroup : Int;                 // Current device group (0 or 1)
+
+         // Device data arrays (internal copies)
+         DeviceReady : Array[1..10] of Bool;              // Internal copy of ready signals
+         DeviceTotalSeconds : Array[1..10] of ULInt;      // Calculated total seconds for each device
+
+         // Sorting and selection arrays
+         SortedIndices : Array[1..10] of Int;             // Device indices sorted by priority
+         DeviceSelected : Array[1..10] of Bool;           // Device selection flags
+
+         // Device selection tracking
+         PreviouslyRunningDevices : Array[1..10] of Bool; // Devices that were running before toggle
+         NewSelectionNeeded : Bool;          // Flag to indicate new device selection needed
+
+         // Temporary calculation variables
+         TempIndex : Int;                    // Temporary index for loops
+         TempValue : ULInt;                  // Temporary value for calculations
+         SwapIndex : Int;                    // Index for swap operations
+         MinWorkTime : ULInt;                // Minimum work time found
+         MaxWorkTime : ULInt;                // Maximum work time found
+      END_STRUCT;
+
+   END_STRUCT;
+
+END_TYPE
+
+
+================================================================================
+FILE 3: DeviceTimeManager_FB.scl
+================================================================================
+
+FUNCTION_BLOCK "DeviceTimeManager_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+   VAR_INPUT
+      Enable : Bool := true;               // Enable/Disable the function block
+      NumberOfDevicesToRun : Int := 0;     // Number of devices to run simultaneously (0-10)
+      ToggleSignal : Bool;                 // Signal to switch device groups
+      ResetWorkTimes : Bool;               // Reset all device work times
+   END_VAR
+
+   VAR_IN_OUT
+      Device1_Ready : Bool;                // Device 1 Ready signal
+      Device1_WorkTime : "UDT_DeviceWorkTime";
+      Device2_Ready : Bool;
+      Device2_WorkTime : "UDT_DeviceWorkTime";
+      Device3_Ready : Bool;
+      Device3_WorkTime : "UDT_DeviceWorkTime";
+      Device4_Ready : Bool;
+      Device4_WorkTime : "UDT_DeviceWorkTime";
+      Device5_Ready : Bool;
+      Device5_WorkTime : "UDT_DeviceWorkTime";
+      Device6_Ready : Bool;
+      Device6_WorkTime : "UDT_DeviceWorkTime";
+      Device7_Ready : Bool;
+      Device7_WorkTime : "UDT_DeviceWorkTime";
+      Device8_Ready : Bool;
+      Device8_WorkTime : "UDT_DeviceWorkTime";
+      Device9_Ready : Bool;
+      Device9_WorkTime : "UDT_DeviceWorkTime";
+      Device10_Ready : Bool;
+      Device10_WorkTime : "UDT_DeviceWorkTime";
+   END_VAR
+
+   VAR_OUTPUT
+      Data : "UDT_DeviceTimeManager";       // All data in one structured UDT
+   END_VAR
+
+   VAR_TEMP
+      i, j : Int;                           // Loop counters
+      tempIndex : Int;                      // Temporary index for sorting
+      tempValue : ULInt;                    // Temporary value for sorting
+      swapped : Bool;                       // Flag for bubble sort
+      selectedCount : Int;                  // Count of selected devices
+      readyCount : Int;                     // Count of ready devices
+      toggleChanged : Bool;                 // Toggle signal changed
+      deviceIndex : Int;                    // Current device index
+      minPriorityValue : ULInt;             // Minimum priority value for selection
+      canSelect : Bool;                     // Flag if device can be selected
+   END_VAR
+
+
+BEGIN
+   //==========================================================================
+   // COPY INPUTS TO DATA STRUCTURE
+   //==========================================================================
+   #Data.Config.Enable := #Enable;
+   #Data.Config.NumberOfDevicesToRun := #NumberOfDevicesToRun;
+   #Data.Config.ToggleSignal := #ToggleSignal;
+   #Data.Config.ResetWorkTimes := #ResetWorkTimes;
+
+   // Copy device ready signals to internal array
+   #Data.Internal.DeviceReady[1] := #Device1_Ready;
+   #Data.Internal.DeviceReady[2] := #Device2_Ready;
+   #Data.Internal.DeviceReady[3] := #Device3_Ready;
+   #Data.Internal.DeviceReady[4] := #Device4_Ready;
+   #Data.Internal.DeviceReady[5] := #Device5_Ready;
+   #Data.Internal.DeviceReady[6] := #Device6_Ready;
+   #Data.Internal.DeviceReady[7] := #Device7_Ready;
+   #Data.Internal.DeviceReady[8] := #Device8_Ready;
+   #Data.Internal.DeviceReady[9] := #Device9_Ready;
+   #Data.Internal.DeviceReady[10] := #Device10_Ready;
+
+   //==========================================================================
+   // INITIALIZATION
+   //==========================================================================
+   IF NOT #Data.Internal.Initialized THEN
+      // Initialize all device outputs
+      #Data.DeviceOutputs.Device1_StartCommand := false;
+      #Data.DeviceOutputs.Device1_IsRunning := false;
+      #Data.DeviceOutputs.Device2_StartCommand := false;
+      #Data.DeviceOutputs.Device2_IsRunning := false;
+      #Data.DeviceOutputs.Device3_StartCommand := false;
+      #Data.DeviceOutputs.Device3_IsRunning := false;
+      #Data.DeviceOutputs.Device4_StartCommand := false;
+      #Data.DeviceOutputs.Device4_IsRunning := false;
+      #Data.DeviceOutputs.Device5_StartCommand := false;
+      #Data.DeviceOutputs.Device5_IsRunning := false;
+      #Data.DeviceOutputs.Device6_StartCommand := false;
+      #Data.DeviceOutputs.Device6_IsRunning := false;
+      #Data.DeviceOutputs.Device7_StartCommand := false;
+      #Data.DeviceOutputs.Device7_IsRunning := false;
+      #Data.DeviceOutputs.Device8_StartCommand := false;
+      #Data.DeviceOutputs.Device8_IsRunning := false;
+      #Data.DeviceOutputs.Device9_StartCommand := false;
+      #Data.DeviceOutputs.Device9_IsRunning := false;
+      #Data.DeviceOutputs.Device10_StartCommand := false;
+      #Data.DeviceOutputs.Device10_IsRunning := false;
+
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.SortedIndices[#i] := #i;
+         #Data.Internal.DeviceTotalSeconds[#i] := 0;
+         #Data.Internal.DeviceSelected[#i] := false;
+         #Data.Internal.PreviouslyRunningDevices[#i] := false;
+      END_FOR;
+
+      #Data.Internal.PreviousToggleSignal := #ToggleSignal;
+      #Data.Internal.ToggleCount := 0;
+      #Data.Internal.CurrentGroup := 0;
+      #Data.Internal.NewSelectionNeeded := true;
+      #Data.Status.LastError := 0;
+      #Data.Internal.Initialized := true;
+   END_IF;
+
+   //==========================================================================
+   // RESET WORK TIMES IF REQUESTED
+   //==========================================================================
+   IF #Data.Config.ResetWorkTimes THEN
+      #Device1_WorkTime.Years := 0;
+      #Device1_WorkTime.Months := 0;
+      #Device1_WorkTime.Weeks := 0;
+      #Device1_WorkTime.Days := 0;
+      #Device1_WorkTime.Hours := 0;
+      #Device1_WorkTime.Minutes := 0;
+      #Device1_WorkTime.Seconds := 0;
+      #Device1_WorkTime.TotalSeconds := 0;
+
+      #Device2_WorkTime.Years := 0;
+      #Device2_WorkTime.Months := 0;
+      #Device2_WorkTime.Weeks := 0;
+      #Device2_WorkTime.Days := 0;
+      #Device2_WorkTime.Hours := 0;
+      #Device2_WorkTime.Minutes := 0;
+      #Device2_WorkTime.Seconds := 0;
+      #Device2_WorkTime.TotalSeconds := 0;
+
+      #Device3_WorkTime.Years := 0;
+      #Device3_WorkTime.Months := 0;
+      #Device3_WorkTime.Weeks := 0;
+      #Device3_WorkTime.Days := 0;
+      #Device3_WorkTime.Hours := 0;
+      #Device3_WorkTime.Minutes := 0;
+      #Device3_WorkTime.Seconds := 0;
+      #Device3_WorkTime.TotalSeconds := 0;
+
+      #Device4_WorkTime.Years := 0;
+      #Device4_WorkTime.Months := 0;
+      #Device4_WorkTime.Weeks := 0;
+      #Device4_WorkTime.Days := 0;
+      #Device4_WorkTime.Hours := 0;
+      #Device4_WorkTime.Minutes := 0;
+      #Device4_WorkTime.Seconds := 0;
+      #Device4_WorkTime.TotalSeconds := 0;
+
+      #Device5_WorkTime.Years := 0;
+      #Device5_WorkTime.Months := 0;
+      #Device5_WorkTime.Weeks := 0;
+      #Device5_WorkTime.Days := 0;
+      #Device5_WorkTime.Hours := 0;
+      #Device5_WorkTime.Minutes := 0;
+      #Device5_WorkTime.Seconds := 0;
+      #Device5_WorkTime.TotalSeconds := 0;
+
+      #Device6_WorkTime.Years := 0;
+      #Device6_WorkTime.Months := 0;
+      #Device6_WorkTime.Weeks := 0;
+      #Device6_WorkTime.Days := 0;
+      #Device6_WorkTime.Hours := 0;
+      #Device6_WorkTime.Minutes := 0;
+      #Device6_WorkTime.Seconds := 0;
+      #Device6_WorkTime.TotalSeconds := 0;
+
+      #Device7_WorkTime.Years := 0;
+      #Device7_WorkTime.Months := 0;
+      #Device7_WorkTime.Weeks := 0;
+      #Device7_WorkTime.Days := 0;
+      #Device7_WorkTime.Hours := 0;
+      #Device7_WorkTime.Minutes := 0;
+      #Device7_WorkTime.Seconds := 0;
+      #Device7_WorkTime.TotalSeconds := 0;
+
+      #Device8_WorkTime.Years := 0;
+      #Device8_WorkTime.Months := 0;
+      #Device8_WorkTime.Weeks := 0;
+      #Device8_WorkTime.Days := 0;
+      #Device8_WorkTime.Hours := 0;
+      #Device8_WorkTime.Minutes := 0;
+      #Device8_WorkTime.Seconds := 0;
+      #Device8_WorkTime.TotalSeconds := 0;
+
+      #Device9_WorkTime.Years := 0;
+      #Device9_WorkTime.Months := 0;
+      #Device9_WorkTime.Weeks := 0;
+      #Device9_WorkTime.Days := 0;
+      #Device9_WorkTime.Hours := 0;
+      #Device9_WorkTime.Minutes := 0;
+      #Device9_WorkTime.Seconds := 0;
+      #Device9_WorkTime.TotalSeconds := 0;
+
+      #Device10_WorkTime.Years := 0;
+      #Device10_WorkTime.Months := 0;
+      #Device10_WorkTime.Weeks := 0;
+      #Device10_WorkTime.Days := 0;
+      #Device10_WorkTime.Hours := 0;
+      #Device10_WorkTime.Minutes := 0;
+      #Device10_WorkTime.Seconds := 0;
+      #Device10_WorkTime.TotalSeconds := 0;
+
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.DeviceTotalSeconds[#i] := 0;
+      END_FOR;
+   END_IF;
+
+   //==========================================================================
+   // VALIDATE CONFIGURATION
+   //==========================================================================
+   IF #Data.Config.NumberOfDevicesToRun < 0 THEN
+      #Data.Config.NumberOfDevicesToRun := 0;
+      #Data.Status.LastError := 1;  // Error: Invalid NumberOfDevicesToRun (negative)
+   ELSIF #Data.Config.NumberOfDevicesToRun > 10 THEN
+      #Data.Config.NumberOfDevicesToRun := 10;
+      #Data.Status.LastError := 2;  // Error: Invalid NumberOfDevicesToRun (>10)
+   ELSE
+      #Data.Status.LastError := 0;  // No error
+   END_IF;
+
+   #Data.Status.RequestedDeviceCount := #Data.Config.NumberOfDevicesToRun;
+
+   //==========================================================================
+   // DETECT TOGGLE SIGNAL CHANGE
+   //==========================================================================
+   #toggleChanged := (#Data.Config.ToggleSignal <> #Data.Internal.PreviousToggleSignal);
+   #Data.Status.ToggleChangeDetected := #toggleChanged;
+   #Data.Status.ToggleState := #Data.Config.ToggleSignal;
+
+   IF #toggleChanged THEN
+      // Save currently running devices
+      #Data.Internal.PreviouslyRunningDevices[1] := #Data.DeviceOutputs.Device1_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[2] := #Data.DeviceOutputs.Device2_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[3] := #Data.DeviceOutputs.Device3_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[4] := #Data.DeviceOutputs.Device4_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[5] := #Data.DeviceOutputs.Device5_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[6] := #Data.DeviceOutputs.Device6_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[7] := #Data.DeviceOutputs.Device7_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[8] := #Data.DeviceOutputs.Device8_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[9] := #Data.DeviceOutputs.Device9_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[10] := #Data.DeviceOutputs.Device10_IsRunning;
+
+      // Stop all currently running devices
+      #Data.DeviceOutputs.Device1_StartCommand := false;
+      #Data.DeviceOutputs.Device1_IsRunning := false;
+      #Data.DeviceOutputs.Device2_StartCommand := false;
+      #Data.DeviceOutputs.Device2_IsRunning := false;
+      #Data.DeviceOutputs.Device3_StartCommand := false;
+      #Data.DeviceOutputs.Device3_IsRunning := false;
+      #Data.DeviceOutputs.Device4_StartCommand := false;
+      #Data.DeviceOutputs.Device4_IsRunning := false;
+      #Data.DeviceOutputs.Device5_StartCommand := false;
+      #Data.DeviceOutputs.Device5_IsRunning := false;
+      #Data.DeviceOutputs.Device6_StartCommand := false;
+      #Data.DeviceOutputs.Device6_IsRunning := false;
+      #Data.DeviceOutputs.Device7_StartCommand := false;
+      #Data.DeviceOutputs.Device7_IsRunning := false;
+      #Data.DeviceOutputs.Device8_StartCommand := false;
+      #Data.DeviceOutputs.Device8_IsRunning := false;
+      #Data.DeviceOutputs.Device9_StartCommand := false;
+      #Data.DeviceOutputs.Device9_IsRunning := false;
+      #Data.DeviceOutputs.Device10_StartCommand := false;
+      #Data.DeviceOutputs.Device10_IsRunning := false;
+
+      #Data.Internal.PreviousToggleSignal := #Data.Config.ToggleSignal;
+      #Data.Internal.ToggleCount := #Data.Internal.ToggleCount + 1;
+      #Data.Internal.NewSelectionNeeded := true;
+
+      // Toggle current group
+      IF #Data.Internal.CurrentGroup = 0 THEN
+         #Data.Internal.CurrentGroup := 1;
+      ELSE
+         #Data.Internal.CurrentGroup := 0;
+      END_IF;
+   END_IF;
+
+   //==========================================================================
+   // UPDATE STATUS
+   //==========================================================================
+   #Data.Status.IsEnabled := #Data.Config.Enable;
+   #Data.Status.IsInitialized := #Data.Internal.Initialized;
+
+   //==========================================================================
+   // MAIN EXECUTION
+   //==========================================================================
+   IF #Data.Config.Enable THEN
+
+      //========================================================================
+      // CALCULATE TOTAL SECONDS FOR EACH DEVICE
+      //========================================================================
+      #Data.Internal.DeviceTotalSeconds[1] :=
+         UDINT_TO_ULINT(#Device1_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device1_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Years) * 31536000;
+      #Device1_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[1];
+
+      #Data.Internal.DeviceTotalSeconds[2] :=
+         UDINT_TO_ULINT(#Device2_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device2_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Years) * 31536000;
+      #Device2_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[2];
+
+      #Data.Internal.DeviceTotalSeconds[3] :=
+         UDINT_TO_ULINT(#Device3_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device3_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Years) * 31536000;
+      #Device3_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[3];
+
+      #Data.Internal.DeviceTotalSeconds[4] :=
+         UDINT_TO_ULINT(#Device4_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device4_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Years) * 31536000;
+      #Device4_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[4];
+
+      #Data.Internal.DeviceTotalSeconds[5] :=
+         UDINT_TO_ULINT(#Device5_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device5_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Years) * 31536000;
+      #Device5_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[5];
+
+      #Data.Internal.DeviceTotalSeconds[6] :=
+         UDINT_TO_ULINT(#Device6_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device6_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Years) * 31536000;
+      #Device6_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[6];
+
+      #Data.Internal.DeviceTotalSeconds[7] :=
+         UDINT_TO_ULINT(#Device7_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device7_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Years) * 31536000;
+      #Device7_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[7];
+
+      #Data.Internal.DeviceTotalSeconds[8] :=
+         UDINT_TO_ULINT(#Device8_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device8_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Years) * 31536000;
+      #Device8_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[8];
+
+      #Data.Internal.DeviceTotalSeconds[9] :=
+         UDINT_TO_ULINT(#Device9_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device9_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Years) * 31536000;
+      #Device9_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[9];
+
+      #Data.Internal.DeviceTotalSeconds[10] :=
+         UDINT_TO_ULINT(#Device10_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device10_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Years) * 31536000;
+      #Device10_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[10];
+
+      //========================================================================
+      // COUNT READY DEVICES
+      //========================================================================
+      #readyCount := 0;
+      FOR #i := 1 TO 10 DO
+         IF #Data.Internal.DeviceReady[#i] THEN
+            #readyCount := #readyCount + 1;
+         END_IF;
+      END_FOR;
+      #Data.Status.ReadyDeviceCount := #readyCount;
+
+      //========================================================================
+      // SORT DEVICES BY PRIORITY
+      // Priority: 1) Ready signal (must be TRUE)
+      //           2) Lowest work time
+      //           3) Lowest device number (already in order)
+      //========================================================================
+
+      // Initialize sorted indices array
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.SortedIndices[#i] := #i;
+      END_FOR;
+
+      // Bubble sort: Sort by work time (ascending), considering only ready devices
+      // Non-ready devices are pushed to the end
+      FOR #i := 1 TO 9 DO
+         #swapped := false;
+         FOR #j := 1 TO (10 - #i) DO
+            #deviceIndex := #Data.Internal.SortedIndices[#j];
+            #tempIndex := #Data.Internal.SortedIndices[#j + 1];
+
+            // Get ready status for both devices
+            IF #Data.Internal.DeviceReady[#deviceIndex] AND #Data.Internal.DeviceReady[#tempIndex] THEN
+               // Both ready: compare work times
+               IF #Data.Internal.DeviceTotalSeconds[#deviceIndex] > #Data.Internal.DeviceTotalSeconds[#tempIndex] THEN
+                  // Swap
+                  #Data.Internal.SortedIndices[#j] := #tempIndex;
+                  #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
+                  #swapped := true;
+               END_IF;
+            ELSIF #Data.Internal.DeviceReady[#deviceIndex] AND NOT #Data.Internal.DeviceReady[#tempIndex] THEN
+               // First ready, second not: keep order (no swap)
+            ELSIF NOT #Data.Internal.DeviceReady[#deviceIndex] AND #Data.Internal.DeviceReady[#tempIndex] THEN
+               // First not ready, second ready: swap to prioritize ready devices
+               #Data.Internal.SortedIndices[#j] := #tempIndex;
+               #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
+               #swapped := true;
+            ELSE
+               // Both not ready: compare work times for future reference
+               IF #Data.Internal.DeviceTotalSeconds[#deviceIndex] > #Data.Internal.DeviceTotalSeconds[#tempIndex] THEN
+                  #Data.Internal.SortedIndices[#j] := #tempIndex;
+                  #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
+                  #swapped := true;
+               END_IF;
+            END_IF;
+         END_FOR;
+
+         // If no swaps occurred, array is sorted
+         IF NOT #swapped THEN
+            EXIT;
+         END_IF;
+      END_FOR;
+
+      //========================================================================
+      // SELECT DEVICES TO RUN
+      //========================================================================
+
+      // Clear all selections first
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.DeviceSelected[#i] := false;
+      END_FOR;
+
+      #selectedCount := 0;
+
+      // Select devices based on sorted order
+      FOR #i := 1 TO 10 DO
+         IF #selectedCount >= #Data.Config.NumberOfDevicesToRun THEN
+            EXIT;  // Required number of devices selected
+         END_IF;
+
+         #deviceIndex := #Data.Internal.SortedIndices[#i];
+
+         // Check if device is ready
+         IF #Data.Internal.DeviceReady[#deviceIndex] THEN
+            // For toggle scenarios: avoid previously running devices if possible
+            #canSelect := true;
+
+            IF #toggleChanged AND (#readyCount > #Data.Config.NumberOfDevicesToRun) THEN
+               // If we have more ready devices than needed, try to select different ones
+               IF #Data.Internal.PreviouslyRunningDevices[#deviceIndex] THEN
+                  #canSelect := false;
+               END_IF;
+            END_IF;
+
+            IF #canSelect THEN
+               #Data.Internal.DeviceSelected[#deviceIndex] := true;
+               #selectedCount := #selectedCount + 1;
+            END_IF;
+         END_IF;
+      END_FOR;
+
+      // If we still need more devices and toggle just occurred,
+      // allow previously running devices
+      IF #toggleChanged AND (#selectedCount < #Data.Config.NumberOfDevicesToRun) THEN
+         FOR #i := 1 TO 10 DO
+            IF #selectedCount >= #Data.Config.NumberOfDevicesToRun THEN
+               EXIT;
+            END_IF;
+
+            #deviceIndex := #Data.Internal.SortedIndices[#i];
+
+            IF #Data.Internal.DeviceReady[#deviceIndex] AND NOT #Data.Internal.DeviceSelected[#deviceIndex] THEN
+               #Data.Internal.DeviceSelected[#deviceIndex] := true;
+               #selectedCount := #selectedCount + 1;
+            END_IF;
+         END_FOR;
+      END_IF;
+
+      //========================================================================
+      // GENERATE START COMMANDS
+      //========================================================================
+      #Data.DeviceOutputs.Device1_StartCommand := #Data.Internal.DeviceSelected[1];
+      #Data.DeviceOutputs.Device1_IsRunning := #Data.Internal.DeviceSelected[1];
+
+      #Data.DeviceOutputs.Device2_StartCommand := #Data.Internal.DeviceSelected[2];
+      #Data.DeviceOutputs.Device2_IsRunning := #Data.Internal.DeviceSelected[2];
+
+      #Data.DeviceOutputs.Device3_StartCommand := #Data.Internal.DeviceSelected[3];
+      #Data.DeviceOutputs.Device3_IsRunning := #Data.Internal.DeviceSelected[3];
+
+      #Data.DeviceOutputs.Device4_StartCommand := #Data.Internal.DeviceSelected[4];
+      #Data.DeviceOutputs.Device4_IsRunning := #Data.Internal.DeviceSelected[4];
+
+      #Data.DeviceOutputs.Device5_StartCommand := #Data.Internal.DeviceSelected[5];
+      #Data.DeviceOutputs.Device5_IsRunning := #Data.Internal.DeviceSelected[5];
+
+      #Data.DeviceOutputs.Device6_StartCommand := #Data.Internal.DeviceSelected[6];
+      #Data.DeviceOutputs.Device6_IsRunning := #Data.Internal.DeviceSelected[6];
+
+      #Data.DeviceOutputs.Device7_StartCommand := #Data.Internal.DeviceSelected[7];
+      #Data.DeviceOutputs.Device7_IsRunning := #Data.Internal.DeviceSelected[7];
+
+      #Data.DeviceOutputs.Device8_StartCommand := #Data.Internal.DeviceSelected[8];
+      #Data.DeviceOutputs.Device8_IsRunning := #Data.Internal.DeviceSelected[8];
+
+      #Data.DeviceOutputs.Device9_StartCommand := #Data.Internal.DeviceSelected[9];
+      #Data.DeviceOutputs.Device9_IsRunning := #Data.Internal.DeviceSelected[9];
+
+      #Data.DeviceOutputs.Device10_StartCommand := #Data.Internal.DeviceSelected[10];
+      #Data.DeviceOutputs.Device10_IsRunning := #Data.Internal.DeviceSelected[10];
+
+      //========================================================================
+      // UPDATE STATUS
+      //========================================================================
+      #Data.Status.ActiveDeviceCount := #selectedCount;
+      #Data.Status.MissingDeviceCount := #Data.Config.NumberOfDevicesToRun - #selectedCount;
+
+      // Set warning flag if insufficient devices
+      IF #selectedCount < #Data.Config.NumberOfDevicesToRun THEN
+         #Data.Status.InsufficientDevices := true;
+      ELSE
+         #Data.Status.InsufficientDevices := false;
+      END_IF;
+
+      // Clear new selection flag after processing
+      #Data.Internal.NewSelectionNeeded := false;
+
+   ELSE
+      //========================================================================
+      // DISABLED STATE - Turn off all devices
+      //========================================================================
+      #Data.DeviceOutputs.Device1_StartCommand := false;
+      #Data.DeviceOutputs.Device1_IsRunning := false;
+      #Data.DeviceOutputs.Device2_StartCommand := false;
+      #Data.DeviceOutputs.Device2_IsRunning := false;
+      #Data.DeviceOutputs.Device3_StartCommand := false;
+      #Data.DeviceOutputs.Device3_IsRunning := false;
+      #Data.DeviceOutputs.Device4_StartCommand := false;
+      #Data.DeviceOutputs.Device4_IsRunning := false;
+      #Data.DeviceOutputs.Device5_StartCommand := false;
+      #Data.DeviceOutputs.Device5_IsRunning := false;
+      #Data.DeviceOutputs.Device6_StartCommand := false;
+      #Data.DeviceOutputs.Device6_IsRunning := false;
+      #Data.DeviceOutputs.Device7_StartCommand := false;
+      #Data.DeviceOutputs.Device7_IsRunning := false;
+      #Data.DeviceOutputs.Device8_StartCommand := false;
+      #Data.DeviceOutputs.Device8_IsRunning := false;
+      #Data.DeviceOutputs.Device9_StartCommand := false;
+      #Data.DeviceOutputs.Device9_IsRunning := false;
+      #Data.DeviceOutputs.Device10_StartCommand := false;
+      #Data.DeviceOutputs.Device10_IsRunning := false;
+
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.DeviceSelected[#i] := false;
+      END_FOR;
+
+      #Data.Status.ActiveDeviceCount := 0;
+      #Data.Status.MissingDeviceCount := #Data.Config.NumberOfDevicesToRun;
+      #Data.Status.InsufficientDevices := false;
+   END_IF;
+
+END_FUNCTION_BLOCK
+
+
+================================================================================
+FILE 4: DeviceTimeManager_FB_Examples.scl
+================================================================================
+
+//==============================================================================
+// DeviceTimeManager_FB - USAGE EXAMPLES
+//==============================================================================
+//
+// This file demonstrates how to use the DeviceTimeManager_FB function block
+// for optimal device rotation and management based on work time.
+//
+//==============================================================================
+
+//==============================================================================
+// EXAMPLE 1: Basic Setup - Managing 3 Pumps
+//==============================================================================
+//
+// Scenario: You have 3 water pumps and want to run 2 at a time, rotating
+//           based on their accumulated runtime.
+//
+// In your Data Block (DB), declare:
+
+DATA_BLOCK "DB_PumpManager"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+NON_RETAIN
+   VAR
+      // Pump work time tracking
+      Pump1_WorkTime : "UDT_DeviceWorkTime";
+      Pump2_WorkTime : "UDT_DeviceWorkTime";
+      Pump3_WorkTime : "UDT_DeviceWorkTime";
+
+      // Pump ready signals (from field)
+      Pump1_Ready : Bool;
+      Pump2_Ready : Bool;
+      Pump3_Ready : Bool;
+
+      // Function block instance
+      DeviceManager : "DeviceTimeManager_FB";
+
+      // General FB for toggle signal (daily rotation)
+      GeneralTimer : "General_FB";
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+// In your cyclic OB (e.g., OB1):
+
+"DB_PumpManager".DeviceManager(
+   Enable := TRUE,
+   NumberOfDevicesToRun := 2,                              // Run 2 pumps at a time
+   ToggleSignal := "DB_PumpManager".GeneralTimer.Data.Pulses.Days.Pulse_1d,  // Rotate daily
+   ResetWorkTimes := FALSE,
+
+   // Pump 1
+   Device1_Ready := "DB_PumpManager".Pump1_Ready,
+   Device1_WorkTime := "DB_PumpManager".Pump1_WorkTime,
+
+   // Pump 2
+   Device2_Ready := "DB_PumpManager".Pump2_Ready,
+   Device2_WorkTime := "DB_PumpManager".Pump2_WorkTime,
+
+   // Pump 3
+   Device3_Ready := "DB_PumpManager".Pump3_Ready,
+   Device3_WorkTime := "DB_PumpManager".Pump3_WorkTime,
+
+   // Unused devices (4-10) - leave at defaults
+   Device4_Ready := FALSE,
+   Device5_Ready := FALSE,
+   Device6_Ready := FALSE,
+   Device7_Ready := FALSE,
+   Device8_Ready := FALSE,
+   Device9_Ready := FALSE,
+   Device10_Ready := FALSE
+);
+
+// Access start commands:
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device1_StartCommand -> Start Pump 1
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device2_StartCommand -> Start Pump 2
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device3_StartCommand -> Start Pump 3
+
+// Check status:
+// "DB_PumpManager".DeviceManager.Data.Status.InsufficientDevices -> Warning flag
+// "DB_PumpManager".DeviceManager.Data.Status.ActiveDeviceCount -> Number running
+
+//==============================================================================
+// EXAMPLE 2: Advanced Setup - Managing 10 Compressors with Work Time Update
+//==============================================================================
+//
+// Scenario: Industrial facility with 10 compressors. Need to run 4-8 at once
+//           depending on demand. Track runtime and rotate weekly.
+//
+
+DATA_BLOCK "DB_CompressorSystem"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+NON_RETAIN
+   VAR
+      // Compressor work times
+      Compressor_WorkTime : Array[1..10] of "UDT_DeviceWorkTime";
+
+      // Compressor ready signals
+      Compressor_Ready : Array[1..10] of Bool;
+
+      // Compressor running time accumulators (for updating work time)
+      Compressor_RunTime : Array[1..10] of Time;
+
+      // System configuration
+      RequiredCompressors : Int := 6;        // Dynamic: changes with demand
+      EnableAutoRotation : Bool := TRUE;
+      ManualRotateTrigger : Bool := FALSE;   // Operator can trigger rotation
+
+      // Function blocks
+      CompressorManager : "DeviceTimeManager_FB";
+      GeneralTimer : "General_FB";
+
+      // Status displays
+      TotalReadyCompressors : Int;
+      RunningCompressors : Int;
+      WarningInsufficientUnits : Bool;
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+// In your cyclic OB:
+
+// Update work times based on actual runtime (example for Compressor 1)
+// This would typically be done in a separate function
+IF "DB_CompressorSystem".CompressorManager.Data.DeviceOutputs.Device1_IsRunning THEN
+   "DB_CompressorSystem".Compressor_RunTime[1] := "DB_CompressorSystem".Compressor_RunTime[1] + T#100MS;
+
+   // Convert accumulated time to work time structure
+   IF "DB_CompressorSystem".Compressor_RunTime[1] >= T#1S THEN
+      "DB_CompressorSystem".Compressor_WorkTime[1].Seconds :=
+         "DB_CompressorSystem".Compressor_WorkTime[1].Seconds + 1;
+      "DB_CompressorSystem".Compressor_RunTime[1] :=
+         "DB_CompressorSystem".Compressor_RunTime[1] - T#1S;
+
+      // Handle overflow
+      IF "DB_CompressorSystem".Compressor_WorkTime[1].Seconds >= 60 THEN
+         "DB_CompressorSystem".Compressor_WorkTime[1].Seconds := 0;
+         "DB_CompressorSystem".Compressor_WorkTime[1].Minutes :=
+            "DB_CompressorSystem".Compressor_WorkTime[1].Minutes + 1;
+      END_IF;
+
+      IF "DB_CompressorSystem".Compressor_WorkTime[1].Minutes >= 60 THEN
+         "DB_CompressorSystem".Compressor_WorkTime[1].Minutes := 0;
+         "DB_CompressorSystem".Compressor_WorkTime[1].Hours :=
+            "DB_CompressorSystem".Compressor_WorkTime[1].Hours + 1;
+      END_IF;
+
+      // Continue for Days, Weeks, Months, Years as needed...
+   END_IF;
+END_IF;
+
+// Call Device Manager
+"DB_CompressorSystem".CompressorManager(
+   Enable := "DB_CompressorSystem".EnableAutoRotation,
+   NumberOfDevicesToRun := "DB_CompressorSystem".RequiredCompressors,
+
+   // Toggle weekly OR on manual trigger
+   ToggleSignal := ("DB_CompressorSystem".GeneralTimer.Data.Pulses.Days.Pulse_7d OR
+                    "DB_CompressorSystem".ManualRotateTrigger),
+
+   ResetWorkTimes := FALSE,
+
+   // All 10 compressors
+   Device1_Ready := "DB_CompressorSystem".Compressor_Ready[1],
+   Device1_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[1],
+
+   Device2_Ready := "DB_CompressorSystem".Compressor_Ready[2],
+   Device2_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[2],
+
+   Device3_Ready := "DB_CompressorSystem".Compressor_Ready[3],
+   Device3_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[3],
+
+   Device4_Ready := "DB_CompressorSystem".Compressor_Ready[4],
+   Device4_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[4],
+
+   Device5_Ready := "DB_CompressorSystem".Compressor_Ready[5],
+   Device5_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[5],
+
+   Device6_Ready := "DB_CompressorSystem".Compressor_Ready[6],
+   Device6_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[6],
+
+   Device7_Ready := "DB_CompressorSystem".Compressor_Ready[7],
+   Device7_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[7],
+
+   Device8_Ready := "DB_CompressorSystem".Compressor_Ready[8],
+   Device8_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[8],
+
+   Device9_Ready := "DB_CompressorSystem".Compressor_Ready[9],
+   Device9_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[9],
+
+   Device10_Ready := "DB_CompressorSystem".Compressor_Ready[10],
+   Device10_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[10]
+);
+
+// Update status displays
+"DB_CompressorSystem".TotalReadyCompressors :=
+   "DB_CompressorSystem".CompressorManager.Data.Status.ReadyDeviceCount;
+
+"DB_CompressorSystem".RunningCompressors :=
+   "DB_CompressorSystem".CompressorManager.Data.Status.ActiveDeviceCount;
+
+"DB_CompressorSystem".WarningInsufficientUnits :=
+   "DB_CompressorSystem".CompressorManager.Data.Status.InsufficientDevices;
+
+// Reset manual trigger after detection
+IF "DB_CompressorSystem".CompressorManager.Data.Status.ToggleChangeDetected THEN
+   "DB_CompressorSystem".ManualRotateTrigger := FALSE;
+END_IF;
+
+//==============================================================================
+// EXAMPLE 3: Simple 2-Pump Alternating System
+//==============================================================================
+//
+// Scenario: 2 pumps, run 1 at a time, alternate daily
+//
+
+DATA_BLOCK "DB_SimplePumpSystem"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+NON_RETAIN
+   VAR
+      Pump1_Ready : Bool := TRUE;
+      Pump1_WorkTime : "UDT_DeviceWorkTime";
+
+      Pump2_Ready : Bool := TRUE;
+      Pump2_WorkTime : "UDT_DeviceWorkTime";
+
+      PumpManager : "DeviceTimeManager_FB";
+      Timer : "General_FB";
+   END_VAR
+BEGIN
+   // Initialize work times from hour values
+   Pump1_WorkTime.Hours := 1000;           // Pump 1 has 1000 hours
+   Pump2_WorkTime.Hours := 1200;           // Pump 2 has 1200 hours
+END_DATA_BLOCK
+
+// In cyclic OB:
+"DB_SimplePumpSystem".PumpManager(
+   Enable := TRUE,
+   NumberOfDevicesToRun := 1,                             // Only 1 pump at a time
+   ToggleSignal := "DB_SimplePumpSystem".Timer.Data.Pulses.Days.Pulse_1d,
+   ResetWorkTimes := FALSE,
+
+   Device1_Ready := "DB_SimplePumpSystem".Pump1_Ready,
+   Device1_WorkTime := "DB_SimplePumpSystem".Pump1_WorkTime,
+
+   Device2_Ready := "DB_SimplePumpSystem".Pump2_Ready,
+   Device2_WorkTime := "DB_SimplePumpSystem".Pump2_WorkTime,
+
+   // Devices 3-10 not used
+   Device3_Ready := FALSE,
+   Device4_Ready := FALSE,
+   Device5_Ready := FALSE,
+   Device6_Ready := FALSE,
+   Device7_Ready := FALSE,
+   Device8_Ready := FALSE,
+   Device9_Ready := FALSE,
+   Device10_Ready := FALSE
+);
+
+// Result: Pump with fewer hours (Pump 1 with 1000h) will run first
+// After daily toggle, pumps will switch
+
+//==============================================================================
+// EXAMPLE 4: Handling Work Time Updates from Hours Meter
+//==============================================================================
+//
+// Function to convert total hours to WorkTime structure
+//
+
+FUNCTION "FC_HoursToWorkTime" : Void
+VERSION : 1.0
+   VAR_INPUT
+      TotalHours : UDInt;                    // Total operating hours
+   END_VAR
+
+   VAR_OUTPUT
+      WorkTime : "UDT_DeviceWorkTime";
+   END_VAR
+
+   VAR_TEMP
+      remainingHours : UDInt;
+   END_VAR
+
+BEGIN
+   #remainingHours := #TotalHours;
+
+   // Calculate years (8760 hours per year)
+   #WorkTime.Years := #remainingHours / 8760;
+   #remainingHours := #remainingHours MOD 8760;
+
+   // Calculate months (730 hours per month, approx)
+   #WorkTime.Months := #remainingHours / 730;
+   #remainingHours := #remainingHours MOD 730;
+
+   // Calculate weeks (168 hours per week)
+   #WorkTime.Weeks := #remainingHours / 168;
+   #remainingHours := #remainingHours MOD 168;
+
+   // Calculate days (24 hours per day)
+   #WorkTime.Days := #remainingHours / 24;
+   #remainingHours := #remainingHours MOD 24;
+
+   // Remaining hours
+   #WorkTime.Hours := #remainingHours;
+
+   // Minutes and seconds would come from separate tracking
+   #WorkTime.Minutes := 0;
+   #WorkTime.Seconds := 0;
+
+END_FUNCTION
+
+//==============================================================================
+// EXAMPLE 5: Integration with SCADA/HMI
+//==============================================================================
+//
+// Displaying status on HMI screen:
+//
+
+// Text display for operator:
+// "Active Devices: {Data.Status.ActiveDeviceCount} / {Data.Config.NumberOfDevicesToRun}"
+// "Ready Devices: {Data.Status.ReadyDeviceCount}"
+// "Warning: {Data.Status.InsufficientDevices}"
+
+// LED indicators:
+// Device1_LED := DeviceManager.Data.DeviceOutputs.Device1_IsRunning
+// Device2_LED := DeviceManager.Data.DeviceOutputs.Device2_IsRunning
+// ... etc
+
+// Alarm generation:
+IF "DeviceManager".Data.Status.InsufficientDevices THEN
+   // Trigger alarm: "Insufficient devices available for operation"
+   // Log event with missing count: Data.Status.MissingDeviceCount
+END_IF;
+
+//==============================================================================
+// NOTES AND BEST PRACTICES
+//==============================================================================
+//
+// 1. Work Time Tracking:
+//    - Update work times continuously when devices are running
+//    - Store work times in persistent (RETAIN) memory to survive power cycles
+//    - Use separate timer logic to accumulate runtime into the WorkTime structure
+//
+// 2. Ready Signal:
+//    - Connect to device feedback: running status, no faults, available
+//    - Include permissive conditions: not in maintenance, not failed
+//
+// 3. Toggle Signal:
+//    - Can use General_FB pulses for automatic rotation
+//    - Can use operator button for manual rotation
+//    - Can use process conditions (shift change, daily reset, etc.)
+//
+// 4. Number of Devices to Run:
+//    - Can be constant or variable based on demand
+//    - Should be validated (0-10 range)
+//    - Can be changed dynamically during operation
+//
+// 5. Monitoring:
+//    - Always monitor InsufficientDevices flag
+//    - Log toggle events for maintenance tracking
+//    - Track total runtime for maintenance scheduling
+//
+// 6. Testing:
+//    - Test with various combinations of ready devices
+//    - Test toggle functionality
+//    - Test with NumberOfDevicesToRun = 0 and = 10
+//    - Test with unequal work times
+//    - Verify priority: Ready > WorkTime > Device Number
+//
+//==============================================================================
