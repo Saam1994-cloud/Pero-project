@@ -12,35 +12,39 @@ VERSION : 1.0
       END_STRUCT;
 
       // =====================================================================
-      // DEVICE WORK TIME STRUCTURE
+      // DEVICE OUTPUTS (Start Commands and Status)
       // =====================================================================
-      DeviceWorkTime : Struct
-         Years : UDInt;                      // Years of operation
-         Months : UDInt;                     // Months of operation (0-11)
-         Weeks : UDInt;                      // Weeks of operation (0-51)
-         Days : UDInt;                       // Days of operation (0-6)
-         Hours : UDInt;                      // Hours of operation (0-23)
-         Minutes : UDInt;                    // Minutes of operation (0-59)
-         Seconds : UDInt;                    // Seconds of operation (0-59)
-         TotalSeconds : ULInt;               // Total seconds for comparison (calculated internally)
-      END_STRUCT;
+      DeviceOutputs : Struct
+         Device1_StartCommand : Bool;        // Start command for Device 1
+         Device1_IsRunning : Bool;           // Device 1 is currently running
 
-      // =====================================================================
-      // INDIVIDUAL DEVICE DATA
-      // =====================================================================
-      DeviceData : Struct
-         Ready : Bool;                       // Device ready signal (input)
-         WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;  // Device work time (input)
-         StartCommand : Bool;                // Start command output
-         IsRunning : Bool;                   // Device is currently running
-         Priority : Int;                     // Calculated priority (lower = higher priority)
-         Selected : Bool;                    // Device selected in current cycle
-      END_STRUCT;
+         Device2_StartCommand : Bool;        // Start command for Device 2
+         Device2_IsRunning : Bool;           // Device 2 is currently running
 
-      // =====================================================================
-      // DEVICES ARRAY (10 Devices)
-      // =====================================================================
-      Devices : Array[1..10] of "UDT_DeviceTimeManager".DeviceData;
+         Device3_StartCommand : Bool;        // Start command for Device 3
+         Device3_IsRunning : Bool;           // Device 3 is currently running
+
+         Device4_StartCommand : Bool;        // Start command for Device 4
+         Device4_IsRunning : Bool;           // Device 4 is currently running
+
+         Device5_StartCommand : Bool;        // Start command for Device 5
+         Device5_IsRunning : Bool;           // Device 5 is currently running
+
+         Device6_StartCommand : Bool;        // Start command for Device 6
+         Device6_IsRunning : Bool;           // Device 6 is currently running
+
+         Device7_StartCommand : Bool;        // Start command for Device 7
+         Device7_IsRunning : Bool;           // Device 7 is currently running
+
+         Device8_StartCommand : Bool;        // Start command for Device 8
+         Device8_IsRunning : Bool;           // Device 8 is currently running
+
+         Device9_StartCommand : Bool;        // Start command for Device 9
+         Device9_IsRunning : Bool;           // Device 9 is currently running
+
+         Device10_StartCommand : Bool;       // Start command for Device 10
+         Device10_IsRunning : Bool;          // Device 10 is currently running
+      END_STRUCT;
 
       // =====================================================================
       // STATUS INFORMATION (Output Section)
@@ -67,12 +71,16 @@ VERSION : 1.0
          ToggleCount : UDInt;                // Number of toggle changes
          CurrentGroup : Int;                 // Current device group (0 or 1)
 
+         // Device data arrays (internal copies)
+         DeviceReady : Array[1..10] of Bool;              // Internal copy of ready signals
+         DeviceTotalSeconds : Array[1..10] of ULInt;      // Calculated total seconds for each device
+
          // Sorting and selection arrays
-         SortedIndices : Array[1..10] of Int;           // Device indices sorted by priority
-         DeviceTotalSeconds : Array[1..10] of ULInt;    // Calculated total seconds for each device
+         SortedIndices : Array[1..10] of Int;             // Device indices sorted by priority
+         DeviceSelected : Array[1..10] of Bool;           // Device selection flags
 
          // Device selection tracking
-         PreviouslyRunningDevices : Array[1..10] of Bool;  // Devices that were running before toggle
+         PreviouslyRunningDevices : Array[1..10] of Bool; // Devices that were running before toggle
          NewSelectionNeeded : Bool;          // Flag to indicate new device selection needed
 
          // Temporary calculation variables

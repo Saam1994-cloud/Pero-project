@@ -22,9 +22,9 @@ VERSION : 1.0
 NON_RETAIN
    VAR
       // Pump work time tracking
-      Pump1_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
-      Pump2_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
-      Pump3_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Pump1_WorkTime : "UDT_DeviceWorkTime";
+      Pump2_WorkTime : "UDT_DeviceWorkTime";
+      Pump3_WorkTime : "UDT_DeviceWorkTime";
 
       // Pump ready signals (from field)
       Pump1_Ready : Bool;
@@ -71,9 +71,9 @@ END_DATA_BLOCK
 );
 
 // Access start commands:
-// "DB_PumpManager".DeviceManager.Data.Devices[1].StartCommand -> Start Pump 1
-// "DB_PumpManager".DeviceManager.Data.Devices[2].StartCommand -> Start Pump 2
-// "DB_PumpManager".DeviceManager.Data.Devices[3].StartCommand -> Start Pump 3
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device1_StartCommand -> Start Pump 1
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device2_StartCommand -> Start Pump 2
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device3_StartCommand -> Start Pump 3
 
 // Check status:
 // "DB_PumpManager".DeviceManager.Data.Status.InsufficientDevices -> Warning flag
@@ -93,7 +93,7 @@ VERSION : 1.0
 NON_RETAIN
    VAR
       // Compressor work times
-      Compressor_WorkTime : Array[1..10] of "UDT_DeviceTimeManager".DeviceWorkTime;
+      Compressor_WorkTime : Array[1..10] of "UDT_DeviceWorkTime";
 
       // Compressor ready signals
       Compressor_Ready : Array[1..10] of Bool;
@@ -122,7 +122,7 @@ END_DATA_BLOCK
 
 // Update work times based on actual runtime (example for Compressor 1)
 // This would typically be done in a separate function
-IF "DB_CompressorSystem".CompressorManager.Data.Devices[1].IsRunning THEN
+IF "DB_CompressorSystem".CompressorManager.Data.DeviceOutputs.Device1_IsRunning THEN
    "DB_CompressorSystem".Compressor_RunTime[1] := "DB_CompressorSystem".Compressor_RunTime[1] + T#100MS;
 
    // Convert accumulated time to work time structure
@@ -220,21 +220,18 @@ VERSION : 1.0
 NON_RETAIN
    VAR
       Pump1_Ready : Bool := TRUE;
-      Pump1_Hours : UDInt := 1000;           // Pump 1 has 1000 hours
+      Pump1_WorkTime : "UDT_DeviceWorkTime";
 
       Pump2_Ready : Bool := TRUE;
-      Pump2_Hours : UDInt := 1200;           // Pump 2 has 1200 hours
-
-      Pump1_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
-      Pump2_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Pump2_WorkTime : "UDT_DeviceWorkTime";
 
       PumpManager : "DeviceTimeManager_FB";
       Timer : "General_FB";
    END_VAR
 BEGIN
    // Initialize work times from hour values
-   Pump1_WorkTime.Hours := Pump1_Hours;
-   Pump2_WorkTime.Hours := Pump2_Hours;
+   Pump1_WorkTime.Hours := 1000;           // Pump 1 has 1000 hours
+   Pump2_WorkTime.Hours := 1200;           // Pump 2 has 1200 hours
 END_DATA_BLOCK
 
 // In cyclic OB:
@@ -278,7 +275,7 @@ VERSION : 1.0
    END_VAR
 
    VAR_OUTPUT
-      WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      WorkTime : "UDT_DeviceWorkTime";
    END_VAR
 
    VAR_TEMP
@@ -326,8 +323,8 @@ END_FUNCTION
 // "Warning: {Data.Status.InsufficientDevices}"
 
 // LED indicators:
-// Device1_LED := DeviceManager.Data.Devices[1].IsRunning
-// Device2_LED := DeviceManager.Data.Devices[2].IsRunning
+// Device1_LED := DeviceManager.Data.DeviceOutputs.Device1_IsRunning
+// Device2_LED := DeviceManager.Data.DeviceOutputs.Device2_IsRunning
 // ... etc
 
 // Alarm generation:

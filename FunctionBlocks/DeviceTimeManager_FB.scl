@@ -10,25 +10,25 @@ VERSION : 1.0
 
    VAR_IN_OUT
       Device1_Ready : Bool;                // Device 1 Ready signal
-      Device1_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device1_WorkTime : "UDT_DeviceWorkTime";
       Device2_Ready : Bool;
-      Device2_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device2_WorkTime : "UDT_DeviceWorkTime";
       Device3_Ready : Bool;
-      Device3_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device3_WorkTime : "UDT_DeviceWorkTime";
       Device4_Ready : Bool;
-      Device4_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device4_WorkTime : "UDT_DeviceWorkTime";
       Device5_Ready : Bool;
-      Device5_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device5_WorkTime : "UDT_DeviceWorkTime";
       Device6_Ready : Bool;
-      Device6_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device6_WorkTime : "UDT_DeviceWorkTime";
       Device7_Ready : Bool;
-      Device7_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device7_WorkTime : "UDT_DeviceWorkTime";
       Device8_Ready : Bool;
-      Device8_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device8_WorkTime : "UDT_DeviceWorkTime";
       Device9_Ready : Bool;
-      Device9_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device9_WorkTime : "UDT_DeviceWorkTime";
       Device10_Ready : Bool;
-      Device10_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device10_WorkTime : "UDT_DeviceWorkTime";
    END_VAR
 
    VAR_OUTPUT
@@ -58,40 +58,48 @@ BEGIN
    #Data.Config.ToggleSignal := #ToggleSignal;
    #Data.Config.ResetWorkTimes := #ResetWorkTimes;
 
-   // Copy device ready signals and work times to array
-   #Data.Devices[1].Ready := #Device1_Ready;
-   #Data.Devices[1].WorkTime := #Device1_WorkTime;
-   #Data.Devices[2].Ready := #Device2_Ready;
-   #Data.Devices[2].WorkTime := #Device2_WorkTime;
-   #Data.Devices[3].Ready := #Device3_Ready;
-   #Data.Devices[3].WorkTime := #Device3_WorkTime;
-   #Data.Devices[4].Ready := #Device4_Ready;
-   #Data.Devices[4].WorkTime := #Device4_WorkTime;
-   #Data.Devices[5].Ready := #Device5_Ready;
-   #Data.Devices[5].WorkTime := #Device5_WorkTime;
-   #Data.Devices[6].Ready := #Device6_Ready;
-   #Data.Devices[6].WorkTime := #Device6_WorkTime;
-   #Data.Devices[7].Ready := #Device7_Ready;
-   #Data.Devices[7].WorkTime := #Device7_WorkTime;
-   #Data.Devices[8].Ready := #Device8_Ready;
-   #Data.Devices[8].WorkTime := #Device8_WorkTime;
-   #Data.Devices[9].Ready := #Device9_Ready;
-   #Data.Devices[9].WorkTime := #Device9_WorkTime;
-   #Data.Devices[10].Ready := #Device10_Ready;
-   #Data.Devices[10].WorkTime := #Device10_WorkTime;
+   // Copy device ready signals to internal array
+   #Data.Internal.DeviceReady[1] := #Device1_Ready;
+   #Data.Internal.DeviceReady[2] := #Device2_Ready;
+   #Data.Internal.DeviceReady[3] := #Device3_Ready;
+   #Data.Internal.DeviceReady[4] := #Device4_Ready;
+   #Data.Internal.DeviceReady[5] := #Device5_Ready;
+   #Data.Internal.DeviceReady[6] := #Device6_Ready;
+   #Data.Internal.DeviceReady[7] := #Device7_Ready;
+   #Data.Internal.DeviceReady[8] := #Device8_Ready;
+   #Data.Internal.DeviceReady[9] := #Device9_Ready;
+   #Data.Internal.DeviceReady[10] := #Device10_Ready;
 
    //==========================================================================
    // INITIALIZATION
    //==========================================================================
    IF NOT #Data.Internal.Initialized THEN
-      // Initialize all devices
+      // Initialize all device outputs
+      #Data.DeviceOutputs.Device1_StartCommand := false;
+      #Data.DeviceOutputs.Device1_IsRunning := false;
+      #Data.DeviceOutputs.Device2_StartCommand := false;
+      #Data.DeviceOutputs.Device2_IsRunning := false;
+      #Data.DeviceOutputs.Device3_StartCommand := false;
+      #Data.DeviceOutputs.Device3_IsRunning := false;
+      #Data.DeviceOutputs.Device4_StartCommand := false;
+      #Data.DeviceOutputs.Device4_IsRunning := false;
+      #Data.DeviceOutputs.Device5_StartCommand := false;
+      #Data.DeviceOutputs.Device5_IsRunning := false;
+      #Data.DeviceOutputs.Device6_StartCommand := false;
+      #Data.DeviceOutputs.Device6_IsRunning := false;
+      #Data.DeviceOutputs.Device7_StartCommand := false;
+      #Data.DeviceOutputs.Device7_IsRunning := false;
+      #Data.DeviceOutputs.Device8_StartCommand := false;
+      #Data.DeviceOutputs.Device8_IsRunning := false;
+      #Data.DeviceOutputs.Device9_StartCommand := false;
+      #Data.DeviceOutputs.Device9_IsRunning := false;
+      #Data.DeviceOutputs.Device10_StartCommand := false;
+      #Data.DeviceOutputs.Device10_IsRunning := false;
+
       FOR #i := 1 TO 10 DO
-         #Data.Devices[#i].StartCommand := false;
-         #Data.Devices[#i].IsRunning := false;
-         #Data.Devices[#i].Priority := 9999;
-         #Data.Devices[#i].Selected := false;
          #Data.Internal.SortedIndices[#i] := #i;
          #Data.Internal.DeviceTotalSeconds[#i] := 0;
+         #Data.Internal.DeviceSelected[#i] := false;
          #Data.Internal.PreviouslyRunningDevices[#i] := false;
       END_FOR;
 
@@ -107,15 +115,97 @@ BEGIN
    // RESET WORK TIMES IF REQUESTED
    //==========================================================================
    IF #Data.Config.ResetWorkTimes THEN
+      #Device1_WorkTime.Years := 0;
+      #Device1_WorkTime.Months := 0;
+      #Device1_WorkTime.Weeks := 0;
+      #Device1_WorkTime.Days := 0;
+      #Device1_WorkTime.Hours := 0;
+      #Device1_WorkTime.Minutes := 0;
+      #Device1_WorkTime.Seconds := 0;
+      #Device1_WorkTime.TotalSeconds := 0;
+
+      #Device2_WorkTime.Years := 0;
+      #Device2_WorkTime.Months := 0;
+      #Device2_WorkTime.Weeks := 0;
+      #Device2_WorkTime.Days := 0;
+      #Device2_WorkTime.Hours := 0;
+      #Device2_WorkTime.Minutes := 0;
+      #Device2_WorkTime.Seconds := 0;
+      #Device2_WorkTime.TotalSeconds := 0;
+
+      #Device3_WorkTime.Years := 0;
+      #Device3_WorkTime.Months := 0;
+      #Device3_WorkTime.Weeks := 0;
+      #Device3_WorkTime.Days := 0;
+      #Device3_WorkTime.Hours := 0;
+      #Device3_WorkTime.Minutes := 0;
+      #Device3_WorkTime.Seconds := 0;
+      #Device3_WorkTime.TotalSeconds := 0;
+
+      #Device4_WorkTime.Years := 0;
+      #Device4_WorkTime.Months := 0;
+      #Device4_WorkTime.Weeks := 0;
+      #Device4_WorkTime.Days := 0;
+      #Device4_WorkTime.Hours := 0;
+      #Device4_WorkTime.Minutes := 0;
+      #Device4_WorkTime.Seconds := 0;
+      #Device4_WorkTime.TotalSeconds := 0;
+
+      #Device5_WorkTime.Years := 0;
+      #Device5_WorkTime.Months := 0;
+      #Device5_WorkTime.Weeks := 0;
+      #Device5_WorkTime.Days := 0;
+      #Device5_WorkTime.Hours := 0;
+      #Device5_WorkTime.Minutes := 0;
+      #Device5_WorkTime.Seconds := 0;
+      #Device5_WorkTime.TotalSeconds := 0;
+
+      #Device6_WorkTime.Years := 0;
+      #Device6_WorkTime.Months := 0;
+      #Device6_WorkTime.Weeks := 0;
+      #Device6_WorkTime.Days := 0;
+      #Device6_WorkTime.Hours := 0;
+      #Device6_WorkTime.Minutes := 0;
+      #Device6_WorkTime.Seconds := 0;
+      #Device6_WorkTime.TotalSeconds := 0;
+
+      #Device7_WorkTime.Years := 0;
+      #Device7_WorkTime.Months := 0;
+      #Device7_WorkTime.Weeks := 0;
+      #Device7_WorkTime.Days := 0;
+      #Device7_WorkTime.Hours := 0;
+      #Device7_WorkTime.Minutes := 0;
+      #Device7_WorkTime.Seconds := 0;
+      #Device7_WorkTime.TotalSeconds := 0;
+
+      #Device8_WorkTime.Years := 0;
+      #Device8_WorkTime.Months := 0;
+      #Device8_WorkTime.Weeks := 0;
+      #Device8_WorkTime.Days := 0;
+      #Device8_WorkTime.Hours := 0;
+      #Device8_WorkTime.Minutes := 0;
+      #Device8_WorkTime.Seconds := 0;
+      #Device8_WorkTime.TotalSeconds := 0;
+
+      #Device9_WorkTime.Years := 0;
+      #Device9_WorkTime.Months := 0;
+      #Device9_WorkTime.Weeks := 0;
+      #Device9_WorkTime.Days := 0;
+      #Device9_WorkTime.Hours := 0;
+      #Device9_WorkTime.Minutes := 0;
+      #Device9_WorkTime.Seconds := 0;
+      #Device9_WorkTime.TotalSeconds := 0;
+
+      #Device10_WorkTime.Years := 0;
+      #Device10_WorkTime.Months := 0;
+      #Device10_WorkTime.Weeks := 0;
+      #Device10_WorkTime.Days := 0;
+      #Device10_WorkTime.Hours := 0;
+      #Device10_WorkTime.Minutes := 0;
+      #Device10_WorkTime.Seconds := 0;
+      #Device10_WorkTime.TotalSeconds := 0;
+
       FOR #i := 1 TO 10 DO
-         #Data.Devices[#i].WorkTime.Years := 0;
-         #Data.Devices[#i].WorkTime.Months := 0;
-         #Data.Devices[#i].WorkTime.Weeks := 0;
-         #Data.Devices[#i].WorkTime.Days := 0;
-         #Data.Devices[#i].WorkTime.Hours := 0;
-         #Data.Devices[#i].WorkTime.Minutes := 0;
-         #Data.Devices[#i].WorkTime.Seconds := 0;
-         #Data.Devices[#i].WorkTime.TotalSeconds := 0;
          #Data.Internal.DeviceTotalSeconds[#i] := 0;
       END_FOR;
    END_IF;
@@ -144,15 +234,38 @@ BEGIN
 
    IF #toggleChanged THEN
       // Save currently running devices
-      FOR #i := 1 TO 10 DO
-         #Data.Internal.PreviouslyRunningDevices[#i] := #Data.Devices[#i].IsRunning;
-      END_FOR;
+      #Data.Internal.PreviouslyRunningDevices[1] := #Data.DeviceOutputs.Device1_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[2] := #Data.DeviceOutputs.Device2_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[3] := #Data.DeviceOutputs.Device3_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[4] := #Data.DeviceOutputs.Device4_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[5] := #Data.DeviceOutputs.Device5_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[6] := #Data.DeviceOutputs.Device6_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[7] := #Data.DeviceOutputs.Device7_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[8] := #Data.DeviceOutputs.Device8_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[9] := #Data.DeviceOutputs.Device9_IsRunning;
+      #Data.Internal.PreviouslyRunningDevices[10] := #Data.DeviceOutputs.Device10_IsRunning;
 
       // Stop all currently running devices
-      FOR #i := 1 TO 10 DO
-         #Data.Devices[#i].StartCommand := false;
-         #Data.Devices[#i].IsRunning := false;
-      END_FOR;
+      #Data.DeviceOutputs.Device1_StartCommand := false;
+      #Data.DeviceOutputs.Device1_IsRunning := false;
+      #Data.DeviceOutputs.Device2_StartCommand := false;
+      #Data.DeviceOutputs.Device2_IsRunning := false;
+      #Data.DeviceOutputs.Device3_StartCommand := false;
+      #Data.DeviceOutputs.Device3_IsRunning := false;
+      #Data.DeviceOutputs.Device4_StartCommand := false;
+      #Data.DeviceOutputs.Device4_IsRunning := false;
+      #Data.DeviceOutputs.Device5_StartCommand := false;
+      #Data.DeviceOutputs.Device5_IsRunning := false;
+      #Data.DeviceOutputs.Device6_StartCommand := false;
+      #Data.DeviceOutputs.Device6_IsRunning := false;
+      #Data.DeviceOutputs.Device7_StartCommand := false;
+      #Data.DeviceOutputs.Device7_IsRunning := false;
+      #Data.DeviceOutputs.Device8_StartCommand := false;
+      #Data.DeviceOutputs.Device8_IsRunning := false;
+      #Data.DeviceOutputs.Device9_StartCommand := false;
+      #Data.DeviceOutputs.Device9_IsRunning := false;
+      #Data.DeviceOutputs.Device10_StartCommand := false;
+      #Data.DeviceOutputs.Device10_IsRunning := false;
 
       #Data.Internal.PreviousToggleSignal := #Data.Config.ToggleSignal;
       #Data.Internal.ToggleCount := #Data.Internal.ToggleCount + 1;
@@ -180,25 +293,112 @@ BEGIN
       //========================================================================
       // CALCULATE TOTAL SECONDS FOR EACH DEVICE
       //========================================================================
-      FOR #i := 1 TO 10 DO
-         #Data.Devices[#i].WorkTime.TotalSeconds :=
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Seconds) +
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Minutes) * 60 +
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Hours) * 3600 +
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Days) * 86400 +
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Weeks) * 604800 +
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Months) * 2592000 +  // Approx 30 days
-            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Years) * 31536000;   // Approx 365 days
+      #Data.Internal.DeviceTotalSeconds[1] :=
+         UDINT_TO_ULINT(#Device1_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device1_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device1_WorkTime.Years) * 31536000;
+      #Device1_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[1];
 
-         #Data.Internal.DeviceTotalSeconds[#i] := #Data.Devices[#i].WorkTime.TotalSeconds;
-      END_FOR;
+      #Data.Internal.DeviceTotalSeconds[2] :=
+         UDINT_TO_ULINT(#Device2_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device2_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device2_WorkTime.Years) * 31536000;
+      #Device2_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[2];
+
+      #Data.Internal.DeviceTotalSeconds[3] :=
+         UDINT_TO_ULINT(#Device3_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device3_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device3_WorkTime.Years) * 31536000;
+      #Device3_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[3];
+
+      #Data.Internal.DeviceTotalSeconds[4] :=
+         UDINT_TO_ULINT(#Device4_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device4_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device4_WorkTime.Years) * 31536000;
+      #Device4_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[4];
+
+      #Data.Internal.DeviceTotalSeconds[5] :=
+         UDINT_TO_ULINT(#Device5_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device5_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device5_WorkTime.Years) * 31536000;
+      #Device5_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[5];
+
+      #Data.Internal.DeviceTotalSeconds[6] :=
+         UDINT_TO_ULINT(#Device6_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device6_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device6_WorkTime.Years) * 31536000;
+      #Device6_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[6];
+
+      #Data.Internal.DeviceTotalSeconds[7] :=
+         UDINT_TO_ULINT(#Device7_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device7_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device7_WorkTime.Years) * 31536000;
+      #Device7_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[7];
+
+      #Data.Internal.DeviceTotalSeconds[8] :=
+         UDINT_TO_ULINT(#Device8_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device8_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device8_WorkTime.Years) * 31536000;
+      #Device8_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[8];
+
+      #Data.Internal.DeviceTotalSeconds[9] :=
+         UDINT_TO_ULINT(#Device9_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device9_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device9_WorkTime.Years) * 31536000;
+      #Device9_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[9];
+
+      #Data.Internal.DeviceTotalSeconds[10] :=
+         UDINT_TO_ULINT(#Device10_WorkTime.Seconds) +
+         UDINT_TO_ULINT(#Device10_WorkTime.Minutes) * 60 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Hours) * 3600 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Days) * 86400 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Weeks) * 604800 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Months) * 2592000 +
+         UDINT_TO_ULINT(#Device10_WorkTime.Years) * 31536000;
+      #Device10_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[10];
 
       //========================================================================
       // COUNT READY DEVICES
       //========================================================================
       #readyCount := 0;
       FOR #i := 1 TO 10 DO
-         IF #Data.Devices[#i].Ready THEN
+         IF #Data.Internal.DeviceReady[#i] THEN
             #readyCount := #readyCount + 1;
          END_IF;
       END_FOR;
@@ -225,7 +425,7 @@ BEGIN
             #tempIndex := #Data.Internal.SortedIndices[#j + 1];
 
             // Get ready status for both devices
-            IF #Data.Devices[#deviceIndex].Ready AND #Data.Devices[#tempIndex].Ready THEN
+            IF #Data.Internal.DeviceReady[#deviceIndex] AND #Data.Internal.DeviceReady[#tempIndex] THEN
                // Both ready: compare work times
                IF #Data.Internal.DeviceTotalSeconds[#deviceIndex] > #Data.Internal.DeviceTotalSeconds[#tempIndex] THEN
                   // Swap
@@ -233,9 +433,9 @@ BEGIN
                   #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
                   #swapped := true;
                END_IF;
-            ELSIF #Data.Devices[#deviceIndex].Ready AND NOT #Data.Devices[#tempIndex].Ready THEN
+            ELSIF #Data.Internal.DeviceReady[#deviceIndex] AND NOT #Data.Internal.DeviceReady[#tempIndex] THEN
                // First ready, second not: keep order (no swap)
-            ELSIF NOT #Data.Devices[#deviceIndex].Ready AND #Data.Devices[#tempIndex].Ready THEN
+            ELSIF NOT #Data.Internal.DeviceReady[#deviceIndex] AND #Data.Internal.DeviceReady[#tempIndex] THEN
                // First not ready, second ready: swap to prioritize ready devices
                #Data.Internal.SortedIndices[#j] := #tempIndex;
                #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
@@ -262,7 +462,7 @@ BEGIN
 
       // Clear all selections first
       FOR #i := 1 TO 10 DO
-         #Data.Devices[#i].Selected := false;
+         #Data.Internal.DeviceSelected[#i] := false;
       END_FOR;
 
       #selectedCount := 0;
@@ -276,7 +476,7 @@ BEGIN
          #deviceIndex := #Data.Internal.SortedIndices[#i];
 
          // Check if device is ready
-         IF #Data.Devices[#deviceIndex].Ready THEN
+         IF #Data.Internal.DeviceReady[#deviceIndex] THEN
             // For toggle scenarios: avoid previously running devices if possible
             #canSelect := true;
 
@@ -288,7 +488,7 @@ BEGIN
             END_IF;
 
             IF #canSelect THEN
-               #Data.Devices[#deviceIndex].Selected := true;
+               #Data.Internal.DeviceSelected[#deviceIndex] := true;
                #selectedCount := #selectedCount + 1;
             END_IF;
          END_IF;
@@ -304,8 +504,8 @@ BEGIN
 
             #deviceIndex := #Data.Internal.SortedIndices[#i];
 
-            IF #Data.Devices[#deviceIndex].Ready AND NOT #Data.Devices[#deviceIndex].Selected THEN
-               #Data.Devices[#deviceIndex].Selected := true;
+            IF #Data.Internal.DeviceReady[#deviceIndex] AND NOT #Data.Internal.DeviceSelected[#deviceIndex] THEN
+               #Data.Internal.DeviceSelected[#deviceIndex] := true;
                #selectedCount := #selectedCount + 1;
             END_IF;
          END_FOR;
@@ -314,15 +514,35 @@ BEGIN
       //========================================================================
       // GENERATE START COMMANDS
       //========================================================================
-      FOR #i := 1 TO 10 DO
-         IF #Data.Devices[#i].Selected THEN
-            #Data.Devices[#i].StartCommand := true;
-            #Data.Devices[#i].IsRunning := true;
-         ELSE
-            #Data.Devices[#i].StartCommand := false;
-            #Data.Devices[#i].IsRunning := false;
-         END_IF;
-      END_FOR;
+      #Data.DeviceOutputs.Device1_StartCommand := #Data.Internal.DeviceSelected[1];
+      #Data.DeviceOutputs.Device1_IsRunning := #Data.Internal.DeviceSelected[1];
+
+      #Data.DeviceOutputs.Device2_StartCommand := #Data.Internal.DeviceSelected[2];
+      #Data.DeviceOutputs.Device2_IsRunning := #Data.Internal.DeviceSelected[2];
+
+      #Data.DeviceOutputs.Device3_StartCommand := #Data.Internal.DeviceSelected[3];
+      #Data.DeviceOutputs.Device3_IsRunning := #Data.Internal.DeviceSelected[3];
+
+      #Data.DeviceOutputs.Device4_StartCommand := #Data.Internal.DeviceSelected[4];
+      #Data.DeviceOutputs.Device4_IsRunning := #Data.Internal.DeviceSelected[4];
+
+      #Data.DeviceOutputs.Device5_StartCommand := #Data.Internal.DeviceSelected[5];
+      #Data.DeviceOutputs.Device5_IsRunning := #Data.Internal.DeviceSelected[5];
+
+      #Data.DeviceOutputs.Device6_StartCommand := #Data.Internal.DeviceSelected[6];
+      #Data.DeviceOutputs.Device6_IsRunning := #Data.Internal.DeviceSelected[6];
+
+      #Data.DeviceOutputs.Device7_StartCommand := #Data.Internal.DeviceSelected[7];
+      #Data.DeviceOutputs.Device7_IsRunning := #Data.Internal.DeviceSelected[7];
+
+      #Data.DeviceOutputs.Device8_StartCommand := #Data.Internal.DeviceSelected[8];
+      #Data.DeviceOutputs.Device8_IsRunning := #Data.Internal.DeviceSelected[8];
+
+      #Data.DeviceOutputs.Device9_StartCommand := #Data.Internal.DeviceSelected[9];
+      #Data.DeviceOutputs.Device9_IsRunning := #Data.Internal.DeviceSelected[9];
+
+      #Data.DeviceOutputs.Device10_StartCommand := #Data.Internal.DeviceSelected[10];
+      #Data.DeviceOutputs.Device10_IsRunning := #Data.Internal.DeviceSelected[10];
 
       //========================================================================
       // UPDATE STATUS
@@ -344,10 +564,29 @@ BEGIN
       //========================================================================
       // DISABLED STATE - Turn off all devices
       //========================================================================
+      #Data.DeviceOutputs.Device1_StartCommand := false;
+      #Data.DeviceOutputs.Device1_IsRunning := false;
+      #Data.DeviceOutputs.Device2_StartCommand := false;
+      #Data.DeviceOutputs.Device2_IsRunning := false;
+      #Data.DeviceOutputs.Device3_StartCommand := false;
+      #Data.DeviceOutputs.Device3_IsRunning := false;
+      #Data.DeviceOutputs.Device4_StartCommand := false;
+      #Data.DeviceOutputs.Device4_IsRunning := false;
+      #Data.DeviceOutputs.Device5_StartCommand := false;
+      #Data.DeviceOutputs.Device5_IsRunning := false;
+      #Data.DeviceOutputs.Device6_StartCommand := false;
+      #Data.DeviceOutputs.Device6_IsRunning := false;
+      #Data.DeviceOutputs.Device7_StartCommand := false;
+      #Data.DeviceOutputs.Device7_IsRunning := false;
+      #Data.DeviceOutputs.Device8_StartCommand := false;
+      #Data.DeviceOutputs.Device8_IsRunning := false;
+      #Data.DeviceOutputs.Device9_StartCommand := false;
+      #Data.DeviceOutputs.Device9_IsRunning := false;
+      #Data.DeviceOutputs.Device10_StartCommand := false;
+      #Data.DeviceOutputs.Device10_IsRunning := false;
+
       FOR #i := 1 TO 10 DO
-         #Data.Devices[#i].StartCommand := false;
-         #Data.Devices[#i].IsRunning := false;
-         #Data.Devices[#i].Selected := false;
+         #Data.Internal.DeviceSelected[#i] := false;
       END_FOR;
 
       #Data.Status.ActiveDeviceCount := 0;
