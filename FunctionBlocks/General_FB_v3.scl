@@ -18,6 +18,8 @@ VERSION : 3.0
       currentTime_ns : LInt;           // Current time in nanoseconds
       lastTime_ns : LInt;              // Last time in nanoseconds
       delta_ns : LInt;                 // Delta time in nanoseconds
+      clkStatus : Int;                 // READ_CLK return status
+      temp_ns : LInt;                  // Temporary for time calculations
    END_VAR
 
 
@@ -91,7 +93,7 @@ BEGIN
       #Data.Internal.Initialized := true;
 
       // Get initial time
-      READ_CLK(OUT => #systemTime);
+      #clkStatus := READ_CLK(OUT => #systemTime);
       #Data.Internal.LastScanTime := LTIME#0NS;
    END_IF;
 
@@ -130,7 +132,7 @@ BEGIN
    //==========================================================================
    IF #Data.Config.Enable THEN
       // Get current system time
-      READ_CLK(OUT => #systemTime);
+      #clkStatus := READ_CLK(OUT => #systemTime);
 
       // Calculate delta time
       // Convert DTL to nanoseconds for high precision
@@ -156,7 +158,9 @@ BEGIN
       #Data.Internal.LastScanTime := LINT_TO_LTIME(#currentTime_ns);
 
       // Calculate cycle time in microseconds for status
-      #Data.Status.CycleTime_us := LTIME_TO_UDINT(#deltaTime / LTIME#1US);
+      // Convert LTime (nanoseconds) to microseconds by dividing by 1000
+      #temp_ns := LTIME_TO_LINT(#deltaTime);
+      #Data.Status.CycleTime_us := LINT_TO_UDINT(#temp_ns / 1000);
 
       //========================================================================
       // MICROSECOND PULSES
