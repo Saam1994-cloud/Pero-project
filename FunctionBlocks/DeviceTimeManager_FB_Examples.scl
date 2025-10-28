@@ -5,6 +5,13 @@
 // This file demonstrates how to use the DeviceTimeManager_FB function block
 // for optimal device rotation and management based on work time.
 //
+// IMPORTANT:
+// All device inputs (DeviceX_Ready and DeviceX_WorkTime) are OPTIONAL!
+// You only need to connect the devices you actually use.
+// Unused devices can be left unconnected - they will default to:
+//   - Ready = FALSE
+//   - WorkTime = all zeros
+//
 //==============================================================================
 
 //==============================================================================
@@ -58,16 +65,10 @@ END_DATA_BLOCK
 
    // Pump 3
    Device3_Ready := "DB_PumpManager".Pump3_Ready,
-   Device3_WorkTime := "DB_PumpManager".Pump3_WorkTime,
+   Device3_WorkTime := "DB_PumpManager".Pump3_WorkTime
 
-   // Unused devices (4-10) - leave at defaults
-   Device4_Ready := FALSE,
-   Device5_Ready := FALSE,
-   Device6_Ready := FALSE,
-   Device7_Ready := FALSE,
-   Device8_Ready := FALSE,
-   Device9_Ready := FALSE,
-   Device10_Ready := FALSE
+   // Unused devices (4-10) can be left unconnected
+   // They will default to Ready=FALSE and WorkTime=all zeros
 );
 
 // Access start commands:
@@ -245,17 +246,9 @@ END_DATA_BLOCK
    Device1_WorkTime := "DB_SimplePumpSystem".Pump1_WorkTime,
 
    Device2_Ready := "DB_SimplePumpSystem".Pump2_Ready,
-   Device2_WorkTime := "DB_SimplePumpSystem".Pump2_WorkTime,
+   Device2_WorkTime := "DB_SimplePumpSystem".Pump2_WorkTime
 
-   // Devices 3-10 not used
-   Device3_Ready := FALSE,
-   Device4_Ready := FALSE,
-   Device5_Ready := FALSE,
-   Device6_Ready := FALSE,
-   Device7_Ready := FALSE,
-   Device8_Ready := FALSE,
-   Device9_Ready := FALSE,
-   Device10_Ready := FALSE
+   // Devices 3-10 not used - can be left unconnected
 );
 
 // Result: Pump with fewer hours (Pump 1 with 1000h) will run first
