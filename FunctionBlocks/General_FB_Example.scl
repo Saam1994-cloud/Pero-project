@@ -1,0 +1,272 @@
+// =============================================================================
+// Example Usage of General_FB in a Main Program Block
+// =============================================================================
+// This example demonstrates how to use the General_FB in your PLC program
+// Copy this code into your OB1 (Main) or cyclic execution block
+// =============================================================================
+
+ORGANIZATION_BLOCK "Main"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR
+      // Instance of the General_FB
+      TimeManager : "General_FB";
+
+      // Edge detection for pulses
+      Edge_1s : R_TRIG;
+      Edge_10s : R_TRIG;
+      Edge_1min : R_TRIG;
+      Edge_Custom : R_TRIG;
+
+      // Application variables
+      LED_FastBlink : Bool;      // Blinks at 100ms
+      LED_SlowBlink : Bool;      // Blinks at 1 second
+      LED_CustomBlink : Bool;    // Blinks at custom rate (1.5 seconds)
+
+      Counter_Seconds : Int;     // Counts seconds
+      Counter_Minutes : Int;     // Counts minutes
+      Counter_10Seconds : Int;   // Counts 10-second intervals
+
+      HourlyEvent : Bool;        // Triggers once per hour
+      DailyEvent : Bool;         // Triggers once per day
+
+      EnableTimeManager : Bool := TRUE;  // Control enable/disable
+      CustomTimeValue : Time := T#1S500MS;  // Custom time: 1.5 seconds
+   END_VAR
+
+BEGIN
+   //=========================================================================
+   // Call the General_FB
+   //=========================================================================
+   #TimeManager(
+      Enable := #EnableTimeManager,
+      CustomTime := #CustomTimeValue
+   );
+
+   //=========================================================================
+   // Example 1: Direct Pulse Usage for Blinking LEDs
+   //=========================================================================
+   // Use pulse outputs directly to toggle LEDs or indicators
+   #LED_FastBlink := #TimeManager.Pulse_100ms;
+   #LED_SlowBlink := #TimeManager.Pulse_1s;
+   #LED_CustomBlink := #TimeManager.CustomPulse;
+
+   //=========================================================================
+   // Example 2: Edge Detection for Counting Events
+   //=========================================================================
+   // Detect rising edges to count events
+
+   // Count seconds (rising edge of 1-second pulse)
+   #Edge_1s(CLK := #TimeManager.Pulse_1s);
+   IF #Edge_1s.Q THEN
+      #Counter_Seconds := #Counter_Seconds + 1;
+
+      // Reset counter at 60 seconds
+      IF #Counter_Seconds >= 60 THEN
+         #Counter_Seconds := 0;
+      END_IF;
+   END_IF;
+
+   // Count 10-second intervals
+   #Edge_10s(CLK := #TimeManager.Pulse_10s);
+   IF #Edge_10s.Q THEN
+      #Counter_10Seconds := #Counter_10Seconds + 1;
+   END_IF;
+
+   // Count minutes
+   #Edge_1min(CLK := #TimeManager.Pulse_1min);
+   IF #Edge_1min.Q THEN
+      #Counter_Minutes := #Counter_Minutes + 1;
+
+      // Reset counter at 60 minutes
+      IF #Counter_Minutes >= 60 THEN
+         #Counter_Minutes := 0;
+      END_IF;
+   END_IF;
+
+   //=========================================================================
+   // Example 3: Event Triggering (One-Shot Events)
+   //=========================================================================
+   // Generate one-shot events for periodic tasks
+
+   // Hourly event (trigger once per hour on rising edge)
+   IF #TimeManager.Pulse_1h AND NOT %M100.0 THEN
+      #HourlyEvent := TRUE;
+      %M100.0 := TRUE;  // Memory bit to track state
+   ELSIF NOT #TimeManager.Pulse_1h THEN
+      #HourlyEvent := FALSE;
+      %M100.0 := FALSE;
+   END_IF;
+
+   // Daily event (trigger once per day on rising edge)
+   IF #TimeManager.Pulse_1d AND NOT %M100.1 THEN
+      #DailyEvent := TRUE;
+      %M100.1 := TRUE;
+   ELSIF NOT #TimeManager.Pulse_1d THEN
+      #DailyEvent := FALSE;
+      %M100.1 := FALSE;
+   END_IF;
+
+   //=========================================================================
+   // Example 4: Custom Time Period Usage
+   //=========================================================================
+   // Count custom time interval events
+   #Edge_Custom(CLK := #TimeManager.CustomPulse);
+   IF #Edge_Custom.Q THEN
+      // Execute custom periodic task here
+      // For example: trigger a specific operation every 1.5 seconds
+      ;  // Your code here
+   END_IF;
+
+   //=========================================================================
+   // Example 5: Conditional Time Management
+   //=========================================================================
+   // Enable/disable time manager based on system state
+   // For example, only run time manager when system is in automatic mode
+   // #EnableTimeManager := SystemMode = AUTOMATIC;
+
+END_ORGANIZATION_BLOCK
+
+
+// =============================================================================
+// Additional Example: Function for Periodic Data Logging
+// =============================================================================
+
+FUNCTION "PeriodicDataLogger" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_IN_OUT
+      TimeManager : "General_FB";
+   END_VAR
+
+   VAR
+      LogEvery10Seconds : R_TRIG;
+      LogEveryMinute : R_TRIG;
+      LogEveryHour : R_TRIG;
+
+      DataBuffer : Array[0..99] of Real;
+      LogIndex : Int;
+   END_VAR
+
+BEGIN
+   //=========================================================================
+   // Log data at different intervals
+   //=========================================================================
+
+   // Log every 10 seconds
+   #LogEvery10Seconds(CLK := #TimeManager.Pulse_10s);
+   IF #LogEvery10Seconds.Q THEN
+      // Log high-frequency data (e.g., process variables)
+      // Your logging code here
+      ;
+   END_IF;
+
+   // Log every minute
+   #LogEveryMinute(CLK := #TimeManager.Pulse_1min);
+   IF #LogEveryMinute.Q THEN
+      // Log medium-frequency data (e.g., aggregated values)
+      // Your logging code here
+      ;
+   END_IF;
+
+   // Log every hour
+   #LogEveryHour(CLK := #TimeManager.Pulse_1h);
+   IF #LogEveryHour.Q THEN
+      // Log low-frequency data (e.g., hourly statistics)
+      // Your logging code here
+      ;
+   END_IF;
+
+END_FUNCTION
+
+
+// =============================================================================
+// Example: Using Multiple Time Managers
+// =============================================================================
+
+FUNCTION_BLOCK "MultipleTimers_Example"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR
+      // Multiple instances for different purposes
+      SystemTimeManager : "General_FB";    // For system-level timing
+      ProcessTimeManager : "General_FB";   // For process control timing
+      AlarmTimeManager : "General_FB";     // For alarm/notification timing
+   END_VAR
+
+BEGIN
+   // System timing (always enabled)
+   #SystemTimeManager(
+      Enable := TRUE,
+      CustomTime := T#500MS
+   );
+
+   // Process timing (enabled only when process is running)
+   #ProcessTimeManager(
+      Enable := "ProcessRunning",  // Replace with your process running bit
+      CustomTime := T#2S500MS      // 2.5 seconds custom interval
+   );
+
+   // Alarm timing (enabled only when alarms are active)
+   #AlarmTimeManager(
+      Enable := "AlarmsActive",    // Replace with your alarm active bit
+      CustomTime := T#750MS        // 0.75 seconds custom interval for alarm blink
+   );
+
+   // Use the different time managers for their specific purposes
+   // System heartbeat
+   "SystemHeartbeat" := #SystemTimeManager.Pulse_1s;
+
+   // Process control pulse
+   "ProcessTrigger" := #ProcessTimeManager.CustomPulse;
+
+   // Alarm blink
+   "AlarmBlink" := #AlarmTimeManager.CustomPulse;
+
+END_FUNCTION_BLOCK
+
+
+// =============================================================================
+// Time Conversion Helper Examples
+// =============================================================================
+
+(*
+   Time Format Examples for CustomTime Input:
+
+   Microseconds:
+   - T#1US     = 1 microsecond
+   - T#100US   = 100 microseconds
+   - T#999US   = 999 microseconds
+
+   Milliseconds:
+   - T#1MS     = 1 millisecond
+   - T#500MS   = 500 milliseconds (0.5 seconds)
+   - T#1S500MS = 1.5 seconds
+
+   Seconds:
+   - T#1S      = 1 second
+   - T#30S     = 30 seconds
+   - T#1M30S   = 1 minute 30 seconds (90 seconds)
+
+   Minutes:
+   - T#1M      = 1 minute
+   - T#5M      = 5 minutes
+   - T#1H30M   = 1 hour 30 minutes
+
+   Hours:
+   - T#1H      = 1 hour
+   - T#12H     = 12 hours
+   - T#1D12H   = 1.5 days (36 hours)
+
+   Days:
+   - T#1D      = 1 day (24 hours)
+   - T#7D      = 7 days (1 week)
+   - T#30D     = 30 days (approximately 1 month)
+
+   Complex Examples:
+   - T#1H23M45S670MS = 1 hour, 23 minutes, 45 seconds, 670 milliseconds
+   - T#2D3H15M       = 2 days, 3 hours, 15 minutes
+*)

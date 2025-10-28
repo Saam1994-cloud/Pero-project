@@ -1,0 +1,287 @@
+FUNCTION_BLOCK "General_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      CustomTime : Time;   // Custom time input for non-standard periods (e.g., T#1S500MS for 1.5 seconds)
+      Enable : Bool := true;   // Enable/Disable the function block
+   END_VAR
+
+   VAR_OUTPUT
+      // Automatic pulse outputs for common time periods
+      Pulse_1us : Bool;      // Toggles every 1 microsecond
+      Pulse_10us : Bool;     // Toggles every 10 microseconds
+      Pulse_100us : Bool;    // Toggles every 100 microseconds
+      Pulse_1ms : Bool;      // Toggles every 1 millisecond
+      Pulse_10ms : Bool;     // Toggles every 10 milliseconds
+      Pulse_100ms : Bool;    // Toggles every 100 milliseconds
+      Pulse_1s : Bool;       // Toggles every 1 second
+      Pulse_10s : Bool;      // Toggles every 10 seconds
+      Pulse_1min : Bool;     // Toggles every 1 minute
+      Pulse_10min : Bool;    // Toggles every 10 minutes
+      Pulse_1h : Bool;       // Toggles every 1 hour
+      Pulse_1d : Bool;       // Toggles every 1 day
+      Pulse_1w : Bool;       // Toggles every 1 week
+      Pulse_1mo : Bool;      // Toggles every 1 month (30 days)
+      Pulse_1y : Bool;       // Toggles every 1 year (365 days)
+      CustomPulse : Bool;    // Toggles based on CustomTime input
+   END_VAR
+
+   VAR
+      // Internal timers for tracking elapsed time
+      elapsedTime_1us : Time;
+      elapsedTime_10us : Time;
+      elapsedTime_100us : Time;
+      elapsedTime_1ms : Time;
+      elapsedTime_10ms : Time;
+      elapsedTime_100ms : Time;
+      elapsedTime_1s : Time;
+      elapsedTime_10s : Time;
+      elapsedTime_1min : Time;
+      elapsedTime_10min : Time;
+      elapsedTime_1h : Time;
+      elapsedTime_1d : Time;
+      elapsedTime_1w : Time;
+      elapsedTime_1mo : Time;
+      elapsedTime_1y : Time;
+      elapsedTime_Custom : Time;
+
+      // Previous cycle time for delta calculation
+      prevCycleTime : Time;
+
+      // Time constants
+      TIME_1US : Time := T#1US;
+      TIME_10US : Time := T#10US;
+      TIME_100US : Time := T#100US;
+      TIME_1MS : Time := T#1MS;
+      TIME_10MS : Time := T#10MS;
+      TIME_100MS : Time := T#100MS;
+      TIME_1S : Time := T#1S;
+      TIME_10S : Time := T#10S;
+      TIME_1MIN : Time := T#1M;
+      TIME_10MIN : Time := T#10M;
+      TIME_1H : Time := T#1H;
+      TIME_1D : Time := T#24H;
+      TIME_1W : Time := T#168H;      // 7 days = 168 hours
+      TIME_1MO : Time := T#720H;     // 30 days = 720 hours
+      TIME_1Y : Time := T#8760H;     // 365 days = 8760 hours
+
+      // Initialization flag
+      initialized : Bool := false;
+   END_VAR
+
+   VAR_TEMP
+      cycleTime : Time;
+      deltaTime : Time;
+   END_VAR
+
+
+BEGIN
+   // Initialize on first scan
+   IF NOT #initialized THEN
+      #elapsedTime_1us := T#0MS;
+      #elapsedTime_10us := T#0MS;
+      #elapsedTime_100us := T#0MS;
+      #elapsedTime_1ms := T#0MS;
+      #elapsedTime_10ms := T#0MS;
+      #elapsedTime_100ms := T#0MS;
+      #elapsedTime_1s := T#0MS;
+      #elapsedTime_10s := T#0MS;
+      #elapsedTime_1min := T#0MS;
+      #elapsedTime_10min := T#0MS;
+      #elapsedTime_1h := T#0MS;
+      #elapsedTime_1d := T#0MS;
+      #elapsedTime_1w := T#0MS;
+      #elapsedTime_1mo := T#0MS;
+      #elapsedTime_1y := T#0MS;
+      #elapsedTime_Custom := T#0MS;
+
+      #prevCycleTime := T#0MS;
+      #initialized := true;
+
+      // Initialize all outputs to false
+      #Pulse_1us := false;
+      #Pulse_10us := false;
+      #Pulse_100us := false;
+      #Pulse_1ms := false;
+      #Pulse_10ms := false;
+      #Pulse_100ms := false;
+      #Pulse_1s := false;
+      #Pulse_10s := false;
+      #Pulse_1min := false;
+      #Pulse_10min := false;
+      #Pulse_1h := false;
+      #Pulse_1d := false;
+      #Pulse_1w := false;
+      #Pulse_1mo := false;
+      #Pulse_1y := false;
+      #CustomPulse := false;
+   END_IF;
+
+   // Only execute if enabled
+   IF #Enable THEN
+      // Get current cycle time (system time in milliseconds)
+      // Note: In real PLC, use system function like TIME() or %SW80 (for S7-300/400)
+      // For S7-1200/1500, use IEC_TIMER or RD_SYS_T
+      #cycleTime := TIME();
+
+      // Calculate delta time since last cycle
+      IF #prevCycleTime > T#0MS THEN
+         #deltaTime := #cycleTime - #prevCycleTime;
+      ELSE
+         #deltaTime := T#0MS;
+      END_IF;
+
+      #prevCycleTime := #cycleTime;
+
+      // ===== 1 Microsecond Pulse =====
+      #elapsedTime_1us := #elapsedTime_1us + #deltaTime;
+      IF #elapsedTime_1us >= #TIME_1US THEN
+         #Pulse_1us := NOT #Pulse_1us;
+         #elapsedTime_1us := #elapsedTime_1us - #TIME_1US;
+      END_IF;
+
+      // ===== 10 Microsecond Pulse =====
+      #elapsedTime_10us := #elapsedTime_10us + #deltaTime;
+      IF #elapsedTime_10us >= #TIME_10US THEN
+         #Pulse_10us := NOT #Pulse_10us;
+         #elapsedTime_10us := #elapsedTime_10us - #TIME_10US;
+      END_IF;
+
+      // ===== 100 Microsecond Pulse =====
+      #elapsedTime_100us := #elapsedTime_100us + #deltaTime;
+      IF #elapsedTime_100us >= #TIME_100US THEN
+         #Pulse_100us := NOT #Pulse_100us;
+         #elapsedTime_100us := #elapsedTime_100us - #TIME_100US;
+      END_IF;
+
+      // ===== 1 Millisecond Pulse =====
+      #elapsedTime_1ms := #elapsedTime_1ms + #deltaTime;
+      IF #elapsedTime_1ms >= #TIME_1MS THEN
+         #Pulse_1ms := NOT #Pulse_1ms;
+         #elapsedTime_1ms := #elapsedTime_1ms - #TIME_1MS;
+      END_IF;
+
+      // ===== 10 Millisecond Pulse =====
+      #elapsedTime_10ms := #elapsedTime_10ms + #deltaTime;
+      IF #elapsedTime_10ms >= #TIME_10MS THEN
+         #Pulse_10ms := NOT #Pulse_10ms;
+         #elapsedTime_10ms := #elapsedTime_10ms - #TIME_10MS;
+      END_IF;
+
+      // ===== 100 Millisecond Pulse =====
+      #elapsedTime_100ms := #elapsedTime_100ms + #deltaTime;
+      IF #elapsedTime_100ms >= #TIME_100MS THEN
+         #Pulse_100ms := NOT #Pulse_100ms;
+         #elapsedTime_100ms := #elapsedTime_100ms - #TIME_100MS;
+      END_IF;
+
+      // ===== 1 Second Pulse =====
+      #elapsedTime_1s := #elapsedTime_1s + #deltaTime;
+      IF #elapsedTime_1s >= #TIME_1S THEN
+         #Pulse_1s := NOT #Pulse_1s;
+         #elapsedTime_1s := #elapsedTime_1s - #TIME_1S;
+      END_IF;
+
+      // ===== 10 Second Pulse =====
+      #elapsedTime_10s := #elapsedTime_10s + #deltaTime;
+      IF #elapsedTime_10s >= #TIME_10S THEN
+         #Pulse_10s := NOT #Pulse_10s;
+         #elapsedTime_10s := #elapsedTime_10s - #TIME_10S;
+      END_IF;
+
+      // ===== 1 Minute Pulse =====
+      #elapsedTime_1min := #elapsedTime_1min + #deltaTime;
+      IF #elapsedTime_1min >= #TIME_1MIN THEN
+         #Pulse_1min := NOT #Pulse_1min;
+         #elapsedTime_1min := #elapsedTime_1min - #TIME_1MIN;
+      END_IF;
+
+      // ===== 10 Minute Pulse =====
+      #elapsedTime_10min := #elapsedTime_10min + #deltaTime;
+      IF #elapsedTime_10min >= #TIME_10MIN THEN
+         #Pulse_10min := NOT #Pulse_10min;
+         #elapsedTime_10min := #elapsedTime_10min - #TIME_10MIN;
+      END_IF;
+
+      // ===== 1 Hour Pulse =====
+      #elapsedTime_1h := #elapsedTime_1h + #deltaTime;
+      IF #elapsedTime_1h >= #TIME_1H THEN
+         #Pulse_1h := NOT #Pulse_1h;
+         #elapsedTime_1h := #elapsedTime_1h - #TIME_1H;
+      END_IF;
+
+      // ===== 1 Day Pulse =====
+      #elapsedTime_1d := #elapsedTime_1d + #deltaTime;
+      IF #elapsedTime_1d >= #TIME_1D THEN
+         #Pulse_1d := NOT #Pulse_1d;
+         #elapsedTime_1d := #elapsedTime_1d - #TIME_1D;
+      END_IF;
+
+      // ===== 1 Week Pulse =====
+      #elapsedTime_1w := #elapsedTime_1w + #deltaTime;
+      IF #elapsedTime_1w >= #TIME_1W THEN
+         #Pulse_1w := NOT #Pulse_1w;
+         #elapsedTime_1w := #elapsedTime_1w - #TIME_1W;
+      END_IF;
+
+      // ===== 1 Month Pulse (30 days) =====
+      #elapsedTime_1mo := #elapsedTime_1mo + #deltaTime;
+      IF #elapsedTime_1mo >= #TIME_1MO THEN
+         #Pulse_1mo := NOT #Pulse_1mo;
+         #elapsedTime_1mo := #elapsedTime_1mo - #TIME_1MO;
+      END_IF;
+
+      // ===== 1 Year Pulse (365 days) =====
+      #elapsedTime_1y := #elapsedTime_1y + #deltaTime;
+      IF #elapsedTime_1y >= #TIME_1Y THEN
+         #Pulse_1y := NOT #Pulse_1y;
+         #elapsedTime_1y := #elapsedTime_1y - #TIME_1Y;
+      END_IF;
+
+      // ===== Custom Time Pulse =====
+      IF #CustomTime > T#0MS THEN
+         #elapsedTime_Custom := #elapsedTime_Custom + #deltaTime;
+         IF #elapsedTime_Custom >= #CustomTime THEN
+            #CustomPulse := NOT #CustomPulse;
+            #elapsedTime_Custom := #elapsedTime_Custom - #CustomTime;
+         END_IF;
+      END_IF;
+
+   ELSE
+      // When disabled, reset all elapsed times and outputs
+      #elapsedTime_1us := T#0MS;
+      #elapsedTime_10us := T#0MS;
+      #elapsedTime_100us := T#0MS;
+      #elapsedTime_1ms := T#0MS;
+      #elapsedTime_10ms := T#0MS;
+      #elapsedTime_100ms := T#0MS;
+      #elapsedTime_1s := T#0MS;
+      #elapsedTime_10s := T#0MS;
+      #elapsedTime_1min := T#0MS;
+      #elapsedTime_10min := T#0MS;
+      #elapsedTime_1h := T#0MS;
+      #elapsedTime_1d := T#0MS;
+      #elapsedTime_1w := T#0MS;
+      #elapsedTime_1mo := T#0MS;
+      #elapsedTime_1y := T#0MS;
+      #elapsedTime_Custom := T#0MS;
+
+      #Pulse_1us := false;
+      #Pulse_10us := false;
+      #Pulse_100us := false;
+      #Pulse_1ms := false;
+      #Pulse_10ms := false;
+      #Pulse_100ms := false;
+      #Pulse_1s := false;
+      #Pulse_10s := false;
+      #Pulse_1min := false;
+      #Pulse_10min := false;
+      #Pulse_1h := false;
+      #Pulse_1d := false;
+      #Pulse_1w := false;
+      #Pulse_1mo := false;
+      #Pulse_1y := false;
+      #CustomPulse := false;
+   END_IF;
+
+END_FUNCTION_BLOCK
