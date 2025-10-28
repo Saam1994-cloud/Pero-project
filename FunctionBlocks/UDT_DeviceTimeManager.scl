@@ -1,0 +1,88 @@
+TYPE "UDT_DeviceTimeManager"
+VERSION : 1.0
+   STRUCT
+      // =====================================================================
+      // CONFIGURATION (Input Section)
+      // =====================================================================
+      Config : Struct
+         Enable : Bool := true;              // Enable/Disable the function block
+         NumberOfDevicesToRun : Int := 0;    // Number of devices to run simultaneously (0-10)
+         ToggleSignal : Bool;                // Signal to switch device groups (from General_FB)
+         ResetWorkTimes : Bool;              // Reset all device work times to zero
+      END_STRUCT;
+
+      // =====================================================================
+      // DEVICE WORK TIME STRUCTURE
+      // =====================================================================
+      DeviceWorkTime : Struct
+         Years : UDInt;                      // Years of operation
+         Months : UDInt;                     // Months of operation (0-11)
+         Weeks : UDInt;                      // Weeks of operation (0-51)
+         Days : UDInt;                       // Days of operation (0-6)
+         Hours : UDInt;                      // Hours of operation (0-23)
+         Minutes : UDInt;                    // Minutes of operation (0-59)
+         Seconds : UDInt;                    // Seconds of operation (0-59)
+         TotalSeconds : ULInt;               // Total seconds for comparison (calculated internally)
+      END_STRUCT;
+
+      // =====================================================================
+      // INDIVIDUAL DEVICE DATA
+      // =====================================================================
+      DeviceData : Struct
+         Ready : Bool;                       // Device ready signal (input)
+         WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;  // Device work time (input)
+         StartCommand : Bool;                // Start command output
+         IsRunning : Bool;                   // Device is currently running
+         Priority : Int;                     // Calculated priority (lower = higher priority)
+         Selected : Bool;                    // Device selected in current cycle
+      END_STRUCT;
+
+      // =====================================================================
+      // DEVICES ARRAY (10 Devices)
+      // =====================================================================
+      Devices : Array[1..10] of "UDT_DeviceTimeManager".DeviceData;
+
+      // =====================================================================
+      // STATUS INFORMATION (Output Section)
+      // =====================================================================
+      Status : Struct
+         IsEnabled : Bool;                   // FB is enabled
+         IsInitialized : Bool;               // FB is initialized
+         ActiveDeviceCount : Int;            // Number of devices currently running
+         ReadyDeviceCount : Int;             // Number of ready devices available
+         InsufficientDevices : Bool;         // Warning: Not enough ready devices
+         RequestedDeviceCount : Int;         // Requested number of devices
+         MissingDeviceCount : Int;           // Number of missing devices (Requested - Active)
+         ToggleState : Bool;                 // Current toggle state
+         ToggleChangeDetected : Bool;        // Toggle signal has changed
+         LastError : Int;                    // Last error code (0 = no error)
+      END_STRUCT;
+
+      // =====================================================================
+      // INTERNAL DATA (Not for external use)
+      // =====================================================================
+      Internal : Struct
+         Initialized : Bool;                 // Initialization flag
+         PreviousToggleSignal : Bool;        // Previous toggle signal state
+         ToggleCount : UDInt;                // Number of toggle changes
+         CurrentGroup : Int;                 // Current device group (0 or 1)
+
+         // Sorting and selection arrays
+         SortedIndices : Array[1..10] of Int;           // Device indices sorted by priority
+         DeviceTotalSeconds : Array[1..10] of ULInt;    // Calculated total seconds for each device
+
+         // Device selection tracking
+         PreviouslyRunningDevices : Array[1..10] of Bool;  // Devices that were running before toggle
+         NewSelectionNeeded : Bool;          // Flag to indicate new device selection needed
+
+         // Temporary calculation variables
+         TempIndex : Int;                    // Temporary index for loops
+         TempValue : ULInt;                  // Temporary value for calculations
+         SwapIndex : Int;                    // Index for swap operations
+         MinWorkTime : ULInt;                // Minimum work time found
+         MaxWorkTime : ULInt;                // Maximum work time found
+      END_STRUCT;
+
+   END_STRUCT;
+
+END_TYPE

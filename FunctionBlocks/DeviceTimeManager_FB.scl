@@ -1,0 +1,358 @@
+FUNCTION_BLOCK "DeviceTimeManager_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+   VAR_INPUT
+      Enable : Bool := true;               // Enable/Disable the function block
+      NumberOfDevicesToRun : Int := 0;     // Number of devices to run simultaneously (0-10)
+      ToggleSignal : Bool;                 // Signal to switch device groups
+      ResetWorkTimes : Bool;               // Reset all device work times
+   END_VAR
+
+   VAR_IN_OUT
+      Device1_Ready : Bool;                // Device 1 Ready signal
+      Device1_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device2_Ready : Bool;
+      Device2_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device3_Ready : Bool;
+      Device3_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device4_Ready : Bool;
+      Device4_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device5_Ready : Bool;
+      Device5_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device6_Ready : Bool;
+      Device6_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device7_Ready : Bool;
+      Device7_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device8_Ready : Bool;
+      Device8_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device9_Ready : Bool;
+      Device9_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+      Device10_Ready : Bool;
+      Device10_WorkTime : "UDT_DeviceTimeManager".DeviceWorkTime;
+   END_VAR
+
+   VAR_OUTPUT
+      Data : "UDT_DeviceTimeManager";       // All data in one structured UDT
+   END_VAR
+
+   VAR_TEMP
+      i, j : Int;                           // Loop counters
+      tempIndex : Int;                      // Temporary index for sorting
+      tempValue : ULInt;                    // Temporary value for sorting
+      swapped : Bool;                       // Flag for bubble sort
+      selectedCount : Int;                  // Count of selected devices
+      readyCount : Int;                     // Count of ready devices
+      toggleChanged : Bool;                 // Toggle signal changed
+      deviceIndex : Int;                    // Current device index
+      minPriorityValue : ULInt;             // Minimum priority value for selection
+      canSelect : Bool;                     // Flag if device can be selected
+   END_VAR
+
+
+BEGIN
+   //==========================================================================
+   // COPY INPUTS TO DATA STRUCTURE
+   //==========================================================================
+   #Data.Config.Enable := #Enable;
+   #Data.Config.NumberOfDevicesToRun := #NumberOfDevicesToRun;
+   #Data.Config.ToggleSignal := #ToggleSignal;
+   #Data.Config.ResetWorkTimes := #ResetWorkTimes;
+
+   // Copy device ready signals and work times to array
+   #Data.Devices[1].Ready := #Device1_Ready;
+   #Data.Devices[1].WorkTime := #Device1_WorkTime;
+   #Data.Devices[2].Ready := #Device2_Ready;
+   #Data.Devices[2].WorkTime := #Device2_WorkTime;
+   #Data.Devices[3].Ready := #Device3_Ready;
+   #Data.Devices[3].WorkTime := #Device3_WorkTime;
+   #Data.Devices[4].Ready := #Device4_Ready;
+   #Data.Devices[4].WorkTime := #Device4_WorkTime;
+   #Data.Devices[5].Ready := #Device5_Ready;
+   #Data.Devices[5].WorkTime := #Device5_WorkTime;
+   #Data.Devices[6].Ready := #Device6_Ready;
+   #Data.Devices[6].WorkTime := #Device6_WorkTime;
+   #Data.Devices[7].Ready := #Device7_Ready;
+   #Data.Devices[7].WorkTime := #Device7_WorkTime;
+   #Data.Devices[8].Ready := #Device8_Ready;
+   #Data.Devices[8].WorkTime := #Device8_WorkTime;
+   #Data.Devices[9].Ready := #Device9_Ready;
+   #Data.Devices[9].WorkTime := #Device9_WorkTime;
+   #Data.Devices[10].Ready := #Device10_Ready;
+   #Data.Devices[10].WorkTime := #Device10_WorkTime;
+
+   //==========================================================================
+   // INITIALIZATION
+   //==========================================================================
+   IF NOT #Data.Internal.Initialized THEN
+      // Initialize all devices
+      FOR #i := 1 TO 10 DO
+         #Data.Devices[#i].StartCommand := false;
+         #Data.Devices[#i].IsRunning := false;
+         #Data.Devices[#i].Priority := 9999;
+         #Data.Devices[#i].Selected := false;
+         #Data.Internal.SortedIndices[#i] := #i;
+         #Data.Internal.DeviceTotalSeconds[#i] := 0;
+         #Data.Internal.PreviouslyRunningDevices[#i] := false;
+      END_FOR;
+
+      #Data.Internal.PreviousToggleSignal := #ToggleSignal;
+      #Data.Internal.ToggleCount := 0;
+      #Data.Internal.CurrentGroup := 0;
+      #Data.Internal.NewSelectionNeeded := true;
+      #Data.Status.LastError := 0;
+      #Data.Internal.Initialized := true;
+   END_IF;
+
+   //==========================================================================
+   // RESET WORK TIMES IF REQUESTED
+   //==========================================================================
+   IF #Data.Config.ResetWorkTimes THEN
+      FOR #i := 1 TO 10 DO
+         #Data.Devices[#i].WorkTime.Years := 0;
+         #Data.Devices[#i].WorkTime.Months := 0;
+         #Data.Devices[#i].WorkTime.Weeks := 0;
+         #Data.Devices[#i].WorkTime.Days := 0;
+         #Data.Devices[#i].WorkTime.Hours := 0;
+         #Data.Devices[#i].WorkTime.Minutes := 0;
+         #Data.Devices[#i].WorkTime.Seconds := 0;
+         #Data.Devices[#i].WorkTime.TotalSeconds := 0;
+         #Data.Internal.DeviceTotalSeconds[#i] := 0;
+      END_FOR;
+   END_IF;
+
+   //==========================================================================
+   // VALIDATE CONFIGURATION
+   //==========================================================================
+   IF #Data.Config.NumberOfDevicesToRun < 0 THEN
+      #Data.Config.NumberOfDevicesToRun := 0;
+      #Data.Status.LastError := 1;  // Error: Invalid NumberOfDevicesToRun (negative)
+   ELSIF #Data.Config.NumberOfDevicesToRun > 10 THEN
+      #Data.Config.NumberOfDevicesToRun := 10;
+      #Data.Status.LastError := 2;  // Error: Invalid NumberOfDevicesToRun (>10)
+   ELSE
+      #Data.Status.LastError := 0;  // No error
+   END_IF;
+
+   #Data.Status.RequestedDeviceCount := #Data.Config.NumberOfDevicesToRun;
+
+   //==========================================================================
+   // DETECT TOGGLE SIGNAL CHANGE
+   //==========================================================================
+   #toggleChanged := (#Data.Config.ToggleSignal <> #Data.Internal.PreviousToggleSignal);
+   #Data.Status.ToggleChangeDetected := #toggleChanged;
+   #Data.Status.ToggleState := #Data.Config.ToggleSignal;
+
+   IF #toggleChanged THEN
+      // Save currently running devices
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.PreviouslyRunningDevices[#i] := #Data.Devices[#i].IsRunning;
+      END_FOR;
+
+      // Stop all currently running devices
+      FOR #i := 1 TO 10 DO
+         #Data.Devices[#i].StartCommand := false;
+         #Data.Devices[#i].IsRunning := false;
+      END_FOR;
+
+      #Data.Internal.PreviousToggleSignal := #Data.Config.ToggleSignal;
+      #Data.Internal.ToggleCount := #Data.Internal.ToggleCount + 1;
+      #Data.Internal.NewSelectionNeeded := true;
+
+      // Toggle current group
+      IF #Data.Internal.CurrentGroup = 0 THEN
+         #Data.Internal.CurrentGroup := 1;
+      ELSE
+         #Data.Internal.CurrentGroup := 0;
+      END_IF;
+   END_IF;
+
+   //==========================================================================
+   // UPDATE STATUS
+   //==========================================================================
+   #Data.Status.IsEnabled := #Data.Config.Enable;
+   #Data.Status.IsInitialized := #Data.Internal.Initialized;
+
+   //==========================================================================
+   // MAIN EXECUTION
+   //==========================================================================
+   IF #Data.Config.Enable THEN
+
+      //========================================================================
+      // CALCULATE TOTAL SECONDS FOR EACH DEVICE
+      //========================================================================
+      FOR #i := 1 TO 10 DO
+         #Data.Devices[#i].WorkTime.TotalSeconds :=
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Seconds) +
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Minutes) * 60 +
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Hours) * 3600 +
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Days) * 86400 +
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Weeks) * 604800 +
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Months) * 2592000 +  // Approx 30 days
+            UDINT_TO_ULINT(#Data.Devices[#i].WorkTime.Years) * 31536000;   // Approx 365 days
+
+         #Data.Internal.DeviceTotalSeconds[#i] := #Data.Devices[#i].WorkTime.TotalSeconds;
+      END_FOR;
+
+      //========================================================================
+      // COUNT READY DEVICES
+      //========================================================================
+      #readyCount := 0;
+      FOR #i := 1 TO 10 DO
+         IF #Data.Devices[#i].Ready THEN
+            #readyCount := #readyCount + 1;
+         END_IF;
+      END_FOR;
+      #Data.Status.ReadyDeviceCount := #readyCount;
+
+      //========================================================================
+      // SORT DEVICES BY PRIORITY
+      // Priority: 1) Ready signal (must be TRUE)
+      //           2) Lowest work time
+      //           3) Lowest device number (already in order)
+      //========================================================================
+
+      // Initialize sorted indices array
+      FOR #i := 1 TO 10 DO
+         #Data.Internal.SortedIndices[#i] := #i;
+      END_FOR;
+
+      // Bubble sort: Sort by work time (ascending), considering only ready devices
+      // Non-ready devices are pushed to the end
+      FOR #i := 1 TO 9 DO
+         #swapped := false;
+         FOR #j := 1 TO (10 - #i) DO
+            #deviceIndex := #Data.Internal.SortedIndices[#j];
+            #tempIndex := #Data.Internal.SortedIndices[#j + 1];
+
+            // Get ready status for both devices
+            IF #Data.Devices[#deviceIndex].Ready AND #Data.Devices[#tempIndex].Ready THEN
+               // Both ready: compare work times
+               IF #Data.Internal.DeviceTotalSeconds[#deviceIndex] > #Data.Internal.DeviceTotalSeconds[#tempIndex] THEN
+                  // Swap
+                  #Data.Internal.SortedIndices[#j] := #tempIndex;
+                  #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
+                  #swapped := true;
+               END_IF;
+            ELSIF #Data.Devices[#deviceIndex].Ready AND NOT #Data.Devices[#tempIndex].Ready THEN
+               // First ready, second not: keep order (no swap)
+            ELSIF NOT #Data.Devices[#deviceIndex].Ready AND #Data.Devices[#tempIndex].Ready THEN
+               // First not ready, second ready: swap to prioritize ready devices
+               #Data.Internal.SortedIndices[#j] := #tempIndex;
+               #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
+               #swapped := true;
+            ELSE
+               // Both not ready: compare work times for future reference
+               IF #Data.Internal.DeviceTotalSeconds[#deviceIndex] > #Data.Internal.DeviceTotalSeconds[#tempIndex] THEN
+                  #Data.Internal.SortedIndices[#j] := #tempIndex;
+                  #Data.Internal.SortedIndices[#j + 1] := #deviceIndex;
+                  #swapped := true;
+               END_IF;
+            END_IF;
+         END_FOR;
+
+         // If no swaps occurred, array is sorted
+         IF NOT #swapped THEN
+            EXIT;
+         END_IF;
+      END_FOR;
+
+      //========================================================================
+      // SELECT DEVICES TO RUN
+      //========================================================================
+
+      // Clear all selections first
+      FOR #i := 1 TO 10 DO
+         #Data.Devices[#i].Selected := false;
+      END_FOR;
+
+      #selectedCount := 0;
+
+      // Select devices based on sorted order
+      FOR #i := 1 TO 10 DO
+         IF #selectedCount >= #Data.Config.NumberOfDevicesToRun THEN
+            EXIT;  // Required number of devices selected
+         END_IF;
+
+         #deviceIndex := #Data.Internal.SortedIndices[#i];
+
+         // Check if device is ready
+         IF #Data.Devices[#deviceIndex].Ready THEN
+            // For toggle scenarios: avoid previously running devices if possible
+            #canSelect := true;
+
+            IF #toggleChanged AND (#readyCount > #Data.Config.NumberOfDevicesToRun) THEN
+               // If we have more ready devices than needed, try to select different ones
+               IF #Data.Internal.PreviouslyRunningDevices[#deviceIndex] THEN
+                  #canSelect := false;
+               END_IF;
+            END_IF;
+
+            IF #canSelect THEN
+               #Data.Devices[#deviceIndex].Selected := true;
+               #selectedCount := #selectedCount + 1;
+            END_IF;
+         END_IF;
+      END_FOR;
+
+      // If we still need more devices and toggle just occurred,
+      // allow previously running devices
+      IF #toggleChanged AND (#selectedCount < #Data.Config.NumberOfDevicesToRun) THEN
+         FOR #i := 1 TO 10 DO
+            IF #selectedCount >= #Data.Config.NumberOfDevicesToRun THEN
+               EXIT;
+            END_IF;
+
+            #deviceIndex := #Data.Internal.SortedIndices[#i];
+
+            IF #Data.Devices[#deviceIndex].Ready AND NOT #Data.Devices[#deviceIndex].Selected THEN
+               #Data.Devices[#deviceIndex].Selected := true;
+               #selectedCount := #selectedCount + 1;
+            END_IF;
+         END_FOR;
+      END_IF;
+
+      //========================================================================
+      // GENERATE START COMMANDS
+      //========================================================================
+      FOR #i := 1 TO 10 DO
+         IF #Data.Devices[#i].Selected THEN
+            #Data.Devices[#i].StartCommand := true;
+            #Data.Devices[#i].IsRunning := true;
+         ELSE
+            #Data.Devices[#i].StartCommand := false;
+            #Data.Devices[#i].IsRunning := false;
+         END_IF;
+      END_FOR;
+
+      //========================================================================
+      // UPDATE STATUS
+      //========================================================================
+      #Data.Status.ActiveDeviceCount := #selectedCount;
+      #Data.Status.MissingDeviceCount := #Data.Config.NumberOfDevicesToRun - #selectedCount;
+
+      // Set warning flag if insufficient devices
+      IF #selectedCount < #Data.Config.NumberOfDevicesToRun THEN
+         #Data.Status.InsufficientDevices := true;
+      ELSE
+         #Data.Status.InsufficientDevices := false;
+      END_IF;
+
+      // Clear new selection flag after processing
+      #Data.Internal.NewSelectionNeeded := false;
+
+   ELSE
+      //========================================================================
+      // DISABLED STATE - Turn off all devices
+      //========================================================================
+      FOR #i := 1 TO 10 DO
+         #Data.Devices[#i].StartCommand := false;
+         #Data.Devices[#i].IsRunning := false;
+         #Data.Devices[#i].Selected := false;
+      END_FOR;
+
+      #Data.Status.ActiveDeviceCount := 0;
+      #Data.Status.MissingDeviceCount := #Data.Config.NumberOfDevicesToRun;
+      #Data.Status.InsufficientDevices := false;
+   END_IF;
+
+END_FUNCTION_BLOCK
