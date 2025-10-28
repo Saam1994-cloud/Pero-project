@@ -1,0 +1,352 @@
+FUNCTION_BLOCK "General_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 3.0
+   VAR_INPUT
+      Enable : Bool := true;           // Enable/Disable the function block
+      CustomTime : LTime;              // Custom time input for non-standard periods
+      ResetCounters : Bool;            // Reset all internal counters and elapsed times
+   END_VAR
+
+   VAR_OUTPUT
+      Data : "UDT_General_FB";         // All data in one structured UDT
+   END_VAR
+
+   VAR_TEMP
+      currentTime : LTime;
+      deltaTime : LTime;
+      systemTime : DTL;
+      currentTime_ns : LInt;           // Current time in nanoseconds
+      lastTime_ns : LInt;              // Last time in nanoseconds
+      delta_ns : LInt;                 // Delta time in nanoseconds
+   END_VAR
+
+
+BEGIN
+   //==========================================================================
+   // COPY INPUTS TO DATA STRUCTURE
+   //==========================================================================
+   #Data.Config.Enable := #Enable;
+   #Data.Config.CustomTime := #CustomTime;
+   #Data.Config.ResetCounters := #ResetCounters;
+
+   //==========================================================================
+   // INITIALIZATION
+   //==========================================================================
+   IF NOT #Data.Internal.Initialized THEN
+      // Initialize all elapsed times
+      #Data.Internal.ElapsedMicroseconds.Time_1us := LTIME#0NS;
+      #Data.Internal.ElapsedMicroseconds.Time_10us := LTIME#0NS;
+      #Data.Internal.ElapsedMicroseconds.Time_100us := LTIME#0NS;
+
+      #Data.Internal.ElapsedMilliseconds.Time_1ms := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_10ms := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_100ms := LTIME#0NS;
+
+      #Data.Internal.ElapsedSeconds.Time_1s := LTIME#0NS;
+      #Data.Internal.ElapsedSeconds.Time_10s := LTIME#0NS;
+
+      #Data.Internal.ElapsedMinutes.Time_1min := LTIME#0NS;
+      #Data.Internal.ElapsedMinutes.Time_10min := LTIME#0NS;
+
+      #Data.Internal.ElapsedHours.Time_1h := LTIME#0NS;
+
+      #Data.Internal.ElapsedDays.Time_1d := LTIME#0NS;
+      #Data.Internal.ElapsedDays.Time_7d := LTIME#0NS;
+
+      #Data.Internal.ElapsedMonths.Time_30d := LTIME#0NS;
+
+      #Data.Internal.ElapsedYears.Time_365d := LTIME#0NS;
+
+      #Data.Internal.ElapsedCustom := LTIME#0NS;
+      #Data.Internal.PrevCycleTime := LTIME#0NS;
+      #Data.Internal.LastScanTime := LTIME#0NS;
+
+      // Initialize all pulse outputs
+      #Data.Pulses.Microseconds.Pulse_1us := false;
+      #Data.Pulses.Microseconds.Pulse_10us := false;
+      #Data.Pulses.Microseconds.Pulse_100us := false;
+
+      #Data.Pulses.Milliseconds.Pulse_1ms := false;
+      #Data.Pulses.Milliseconds.Pulse_10ms := false;
+      #Data.Pulses.Milliseconds.Pulse_100ms := false;
+
+      #Data.Pulses.Seconds.Pulse_1s := false;
+      #Data.Pulses.Seconds.Pulse_10s := false;
+
+      #Data.Pulses.Minutes.Pulse_1min := false;
+      #Data.Pulses.Minutes.Pulse_10min := false;
+
+      #Data.Pulses.Hours.Pulse_1h := false;
+
+      #Data.Pulses.Days.Pulse_1d := false;
+      #Data.Pulses.Days.Pulse_7d := false;
+
+      #Data.Pulses.Months.Pulse_30d := false;
+
+      #Data.Pulses.Years.Pulse_365d := false;
+
+      #Data.Pulses.Custom.Pulse := false;
+      #Data.Pulses.Custom.Active := false;
+
+      #Data.Internal.Initialized := true;
+
+      // Get initial time
+      READ_CLK(OUT => #systemTime);
+      #Data.Internal.LastScanTime := LTIME#0NS;
+   END_IF;
+
+   //==========================================================================
+   // RESET COUNTERS IF REQUESTED
+   //==========================================================================
+   IF #Data.Config.ResetCounters THEN
+      #Data.Internal.ElapsedMicroseconds.Time_1us := LTIME#0NS;
+      #Data.Internal.ElapsedMicroseconds.Time_10us := LTIME#0NS;
+      #Data.Internal.ElapsedMicroseconds.Time_100us := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_1ms := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_10ms := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_100ms := LTIME#0NS;
+      #Data.Internal.ElapsedSeconds.Time_1s := LTIME#0NS;
+      #Data.Internal.ElapsedSeconds.Time_10s := LTIME#0NS;
+      #Data.Internal.ElapsedMinutes.Time_1min := LTIME#0NS;
+      #Data.Internal.ElapsedMinutes.Time_10min := LTIME#0NS;
+      #Data.Internal.ElapsedHours.Time_1h := LTIME#0NS;
+      #Data.Internal.ElapsedDays.Time_1d := LTIME#0NS;
+      #Data.Internal.ElapsedDays.Time_7d := LTIME#0NS;
+      #Data.Internal.ElapsedMonths.Time_30d := LTIME#0NS;
+      #Data.Internal.ElapsedYears.Time_365d := LTIME#0NS;
+      #Data.Internal.ElapsedCustom := LTIME#0NS;
+   END_IF;
+
+   //==========================================================================
+   // UPDATE STATUS
+   //==========================================================================
+   #Data.Status.IsEnabled := #Data.Config.Enable;
+   #Data.Status.IsInitialized := #Data.Internal.Initialized;
+   #Data.Status.CustomTimeActive := #Data.Config.CustomTime > LTIME#0NS;
+   #Data.Pulses.Custom.Active := #Data.Status.CustomTimeActive;
+
+   //==========================================================================
+   // MAIN EXECUTION
+   //==========================================================================
+   IF #Data.Config.Enable THEN
+      // Get current system time
+      READ_CLK(OUT => #systemTime);
+
+      // Calculate delta time
+      // Convert DTL to nanoseconds for high precision
+      #currentTime_ns := DINT_TO_LINT(#systemTime.HOUR) * 3600000000000 +
+                         DINT_TO_LINT(#systemTime.MINUTE) * 60000000000 +
+                         DINT_TO_LINT(#systemTime.SECOND) * 1000000000 +
+                         DINT_TO_LINT(#systemTime.NANOSECOND);
+
+      IF #Data.Internal.LastScanTime > LTIME#0NS THEN
+         #lastTime_ns := LTIME_TO_LINT(#Data.Internal.LastScanTime);
+         #delta_ns := #currentTime_ns - #lastTime_ns;
+
+         // Handle day rollover
+         IF #delta_ns < 0 THEN
+            #delta_ns := #delta_ns + 86400000000000;  // Add 24 hours in nanoseconds
+         END_IF;
+
+         #deltaTime := LINT_TO_LTIME(#delta_ns);
+      ELSE
+         #deltaTime := LTIME#0NS;
+      END_IF;
+
+      #Data.Internal.LastScanTime := LINT_TO_LTIME(#currentTime_ns);
+
+      // Calculate cycle time in microseconds for status
+      #Data.Status.CycleTime_us := LTIME_TO_UDINT(#deltaTime / LTIME#1US);
+
+      //========================================================================
+      // MICROSECOND PULSES
+      //========================================================================
+
+      // 1 Microsecond Pulse
+      #Data.Internal.ElapsedMicroseconds.Time_1us := #Data.Internal.ElapsedMicroseconds.Time_1us + #deltaTime;
+      IF #Data.Internal.ElapsedMicroseconds.Time_1us >= #Data.TimeConst.Microseconds.TIME_1US THEN
+         #Data.Pulses.Microseconds.Pulse_1us := NOT #Data.Pulses.Microseconds.Pulse_1us;
+         #Data.Internal.ElapsedMicroseconds.Time_1us := #Data.Internal.ElapsedMicroseconds.Time_1us - #Data.TimeConst.Microseconds.TIME_1US;
+      END_IF;
+
+      // 10 Microsecond Pulse
+      #Data.Internal.ElapsedMicroseconds.Time_10us := #Data.Internal.ElapsedMicroseconds.Time_10us + #deltaTime;
+      IF #Data.Internal.ElapsedMicroseconds.Time_10us >= #Data.TimeConst.Microseconds.TIME_10US THEN
+         #Data.Pulses.Microseconds.Pulse_10us := NOT #Data.Pulses.Microseconds.Pulse_10us;
+         #Data.Internal.ElapsedMicroseconds.Time_10us := #Data.Internal.ElapsedMicroseconds.Time_10us - #Data.TimeConst.Microseconds.TIME_10US;
+      END_IF;
+
+      // 100 Microsecond Pulse
+      #Data.Internal.ElapsedMicroseconds.Time_100us := #Data.Internal.ElapsedMicroseconds.Time_100us + #deltaTime;
+      IF #Data.Internal.ElapsedMicroseconds.Time_100us >= #Data.TimeConst.Microseconds.TIME_100US THEN
+         #Data.Pulses.Microseconds.Pulse_100us := NOT #Data.Pulses.Microseconds.Pulse_100us;
+         #Data.Internal.ElapsedMicroseconds.Time_100us := #Data.Internal.ElapsedMicroseconds.Time_100us - #Data.TimeConst.Microseconds.TIME_100US;
+      END_IF;
+
+      //========================================================================
+      // MILLISECOND PULSES
+      //========================================================================
+
+      // 1 Millisecond Pulse
+      #Data.Internal.ElapsedMilliseconds.Time_1ms := #Data.Internal.ElapsedMilliseconds.Time_1ms + #deltaTime;
+      IF #Data.Internal.ElapsedMilliseconds.Time_1ms >= #Data.TimeConst.Milliseconds.TIME_1MS THEN
+         #Data.Pulses.Milliseconds.Pulse_1ms := NOT #Data.Pulses.Milliseconds.Pulse_1ms;
+         #Data.Internal.ElapsedMilliseconds.Time_1ms := #Data.Internal.ElapsedMilliseconds.Time_1ms - #Data.TimeConst.Milliseconds.TIME_1MS;
+      END_IF;
+
+      // 10 Millisecond Pulse
+      #Data.Internal.ElapsedMilliseconds.Time_10ms := #Data.Internal.ElapsedMilliseconds.Time_10ms + #deltaTime;
+      IF #Data.Internal.ElapsedMilliseconds.Time_10ms >= #Data.TimeConst.Milliseconds.TIME_10MS THEN
+         #Data.Pulses.Milliseconds.Pulse_10ms := NOT #Data.Pulses.Milliseconds.Pulse_10ms;
+         #Data.Internal.ElapsedMilliseconds.Time_10ms := #Data.Internal.ElapsedMilliseconds.Time_10ms - #Data.TimeConst.Milliseconds.TIME_10MS;
+      END_IF;
+
+      // 100 Millisecond Pulse
+      #Data.Internal.ElapsedMilliseconds.Time_100ms := #Data.Internal.ElapsedMilliseconds.Time_100ms + #deltaTime;
+      IF #Data.Internal.ElapsedMilliseconds.Time_100ms >= #Data.TimeConst.Milliseconds.TIME_100MS THEN
+         #Data.Pulses.Milliseconds.Pulse_100ms := NOT #Data.Pulses.Milliseconds.Pulse_100ms;
+         #Data.Internal.ElapsedMilliseconds.Time_100ms := #Data.Internal.ElapsedMilliseconds.Time_100ms - #Data.TimeConst.Milliseconds.TIME_100MS;
+      END_IF;
+
+      //========================================================================
+      // SECOND PULSES
+      //========================================================================
+
+      // 1 Second Pulse
+      #Data.Internal.ElapsedSeconds.Time_1s := #Data.Internal.ElapsedSeconds.Time_1s + #deltaTime;
+      IF #Data.Internal.ElapsedSeconds.Time_1s >= #Data.TimeConst.Seconds.TIME_1S THEN
+         #Data.Pulses.Seconds.Pulse_1s := NOT #Data.Pulses.Seconds.Pulse_1s;
+         #Data.Internal.ElapsedSeconds.Time_1s := #Data.Internal.ElapsedSeconds.Time_1s - #Data.TimeConst.Seconds.TIME_1S;
+      END_IF;
+
+      // 10 Second Pulse
+      #Data.Internal.ElapsedSeconds.Time_10s := #Data.Internal.ElapsedSeconds.Time_10s + #deltaTime;
+      IF #Data.Internal.ElapsedSeconds.Time_10s >= #Data.TimeConst.Seconds.TIME_10S THEN
+         #Data.Pulses.Seconds.Pulse_10s := NOT #Data.Pulses.Seconds.Pulse_10s;
+         #Data.Internal.ElapsedSeconds.Time_10s := #Data.Internal.ElapsedSeconds.Time_10s - #Data.TimeConst.Seconds.TIME_10S;
+      END_IF;
+
+      //========================================================================
+      // MINUTE PULSES
+      //========================================================================
+
+      // 1 Minute Pulse
+      #Data.Internal.ElapsedMinutes.Time_1min := #Data.Internal.ElapsedMinutes.Time_1min + #deltaTime;
+      IF #Data.Internal.ElapsedMinutes.Time_1min >= #Data.TimeConst.Minutes.TIME_1MIN THEN
+         #Data.Pulses.Minutes.Pulse_1min := NOT #Data.Pulses.Minutes.Pulse_1min;
+         #Data.Internal.ElapsedMinutes.Time_1min := #Data.Internal.ElapsedMinutes.Time_1min - #Data.TimeConst.Minutes.TIME_1MIN;
+      END_IF;
+
+      // 10 Minute Pulse
+      #Data.Internal.ElapsedMinutes.Time_10min := #Data.Internal.ElapsedMinutes.Time_10min + #deltaTime;
+      IF #Data.Internal.ElapsedMinutes.Time_10min >= #Data.TimeConst.Minutes.TIME_10MIN THEN
+         #Data.Pulses.Minutes.Pulse_10min := NOT #Data.Pulses.Minutes.Pulse_10min;
+         #Data.Internal.ElapsedMinutes.Time_10min := #Data.Internal.ElapsedMinutes.Time_10min - #Data.TimeConst.Minutes.TIME_10MIN;
+      END_IF;
+
+      //========================================================================
+      // HOUR PULSES
+      //========================================================================
+
+      // 1 Hour Pulse
+      #Data.Internal.ElapsedHours.Time_1h := #Data.Internal.ElapsedHours.Time_1h + #deltaTime;
+      IF #Data.Internal.ElapsedHours.Time_1h >= #Data.TimeConst.Hours.TIME_1H THEN
+         #Data.Pulses.Hours.Pulse_1h := NOT #Data.Pulses.Hours.Pulse_1h;
+         #Data.Internal.ElapsedHours.Time_1h := #Data.Internal.ElapsedHours.Time_1h - #Data.TimeConst.Hours.TIME_1H;
+      END_IF;
+
+      //========================================================================
+      // DAY PULSES
+      //========================================================================
+
+      // 1 Day Pulse
+      #Data.Internal.ElapsedDays.Time_1d := #Data.Internal.ElapsedDays.Time_1d + #deltaTime;
+      IF #Data.Internal.ElapsedDays.Time_1d >= #Data.TimeConst.Days.TIME_1D THEN
+         #Data.Pulses.Days.Pulse_1d := NOT #Data.Pulses.Days.Pulse_1d;
+         #Data.Internal.ElapsedDays.Time_1d := #Data.Internal.ElapsedDays.Time_1d - #Data.TimeConst.Days.TIME_1D;
+      END_IF;
+
+      // 7 Day (Week) Pulse
+      #Data.Internal.ElapsedDays.Time_7d := #Data.Internal.ElapsedDays.Time_7d + #deltaTime;
+      IF #Data.Internal.ElapsedDays.Time_7d >= #Data.TimeConst.Days.TIME_7D THEN
+         #Data.Pulses.Days.Pulse_7d := NOT #Data.Pulses.Days.Pulse_7d;
+         #Data.Internal.ElapsedDays.Time_7d := #Data.Internal.ElapsedDays.Time_7d - #Data.TimeConst.Days.TIME_7D;
+      END_IF;
+
+      //========================================================================
+      // MONTH PULSES
+      //========================================================================
+
+      // 30 Day (Month) Pulse - Using LTime to support large values
+      #Data.Internal.ElapsedMonths.Time_30d := #Data.Internal.ElapsedMonths.Time_30d + #deltaTime;
+      IF #Data.Internal.ElapsedMonths.Time_30d >= #Data.TimeConst.Months.TIME_30D THEN
+         #Data.Pulses.Months.Pulse_30d := NOT #Data.Pulses.Months.Pulse_30d;
+         #Data.Internal.ElapsedMonths.Time_30d := #Data.Internal.ElapsedMonths.Time_30d - #Data.TimeConst.Months.TIME_30D;
+      END_IF;
+
+      //========================================================================
+      // YEAR PULSES
+      //========================================================================
+
+      // 365 Day (Year) Pulse - Using LTime to support large values
+      #Data.Internal.ElapsedYears.Time_365d := #Data.Internal.ElapsedYears.Time_365d + #deltaTime;
+      IF #Data.Internal.ElapsedYears.Time_365d >= #Data.TimeConst.Years.TIME_365D THEN
+         #Data.Pulses.Years.Pulse_365d := NOT #Data.Pulses.Years.Pulse_365d;
+         #Data.Internal.ElapsedYears.Time_365d := #Data.Internal.ElapsedYears.Time_365d - #Data.TimeConst.Years.TIME_365D;
+      END_IF;
+
+      //========================================================================
+      // CUSTOM TIME PULSE
+      //========================================================================
+
+      IF #Data.Config.CustomTime > LTIME#0NS THEN
+         #Data.Internal.ElapsedCustom := #Data.Internal.ElapsedCustom + #deltaTime;
+         IF #Data.Internal.ElapsedCustom >= #Data.Config.CustomTime THEN
+            #Data.Pulses.Custom.Pulse := NOT #Data.Pulses.Custom.Pulse;
+            #Data.Internal.ElapsedCustom := #Data.Internal.ElapsedCustom - #Data.Config.CustomTime;
+         END_IF;
+      END_IF;
+
+   ELSE
+      //========================================================================
+      // DISABLED STATE - Reset all pulses and elapsed times
+      //========================================================================
+      #Data.Internal.ElapsedMicroseconds.Time_1us := LTIME#0NS;
+      #Data.Internal.ElapsedMicroseconds.Time_10us := LTIME#0NS;
+      #Data.Internal.ElapsedMicroseconds.Time_100us := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_1ms := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_10ms := LTIME#0NS;
+      #Data.Internal.ElapsedMilliseconds.Time_100ms := LTIME#0NS;
+      #Data.Internal.ElapsedSeconds.Time_1s := LTIME#0NS;
+      #Data.Internal.ElapsedSeconds.Time_10s := LTIME#0NS;
+      #Data.Internal.ElapsedMinutes.Time_1min := LTIME#0NS;
+      #Data.Internal.ElapsedMinutes.Time_10min := LTIME#0NS;
+      #Data.Internal.ElapsedHours.Time_1h := LTIME#0NS;
+      #Data.Internal.ElapsedDays.Time_1d := LTIME#0NS;
+      #Data.Internal.ElapsedDays.Time_7d := LTIME#0NS;
+      #Data.Internal.ElapsedMonths.Time_30d := LTIME#0NS;
+      #Data.Internal.ElapsedYears.Time_365d := LTIME#0NS;
+      #Data.Internal.ElapsedCustom := LTIME#0NS;
+
+      #Data.Pulses.Microseconds.Pulse_1us := false;
+      #Data.Pulses.Microseconds.Pulse_10us := false;
+      #Data.Pulses.Microseconds.Pulse_100us := false;
+      #Data.Pulses.Milliseconds.Pulse_1ms := false;
+      #Data.Pulses.Milliseconds.Pulse_10ms := false;
+      #Data.Pulses.Milliseconds.Pulse_100ms := false;
+      #Data.Pulses.Seconds.Pulse_1s := false;
+      #Data.Pulses.Seconds.Pulse_10s := false;
+      #Data.Pulses.Minutes.Pulse_1min := false;
+      #Data.Pulses.Minutes.Pulse_10min := false;
+      #Data.Pulses.Hours.Pulse_1h := false;
+      #Data.Pulses.Days.Pulse_1d := false;
+      #Data.Pulses.Days.Pulse_7d := false;
+      #Data.Pulses.Months.Pulse_30d := false;
+      #Data.Pulses.Years.Pulse_365d := false;
+      #Data.Pulses.Custom.Pulse := false;
+
+      #Data.Status.CycleTime_us := 0;
+      #Data.Internal.LastScanTime := LTIME#0NS;
+   END_IF;
+
+END_FUNCTION_BLOCK

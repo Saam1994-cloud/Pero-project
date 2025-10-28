@@ -1,0 +1,194 @@
+TYPE "UDT_General_FB"
+VERSION : 0.1
+   STRUCT
+      // =====================================================================
+      // CONFIGURATION (Input Section)
+      // =====================================================================
+      Config : Struct
+         Enable : Bool := true;              // Enable/Disable the function block
+         CustomTime : LTime;                 // Custom time input (extended range support)
+         ResetCounters : Bool;               // Reset all internal counters
+      END_STRUCT;
+
+      // =====================================================================
+      // PULSE OUTPUTS (Organized by Time Scale)
+      // =====================================================================
+      Pulses : Struct
+         // Microsecond range pulses
+         Microseconds : Struct
+            Pulse_1us : Bool;                // Toggles every 1 microsecond
+            Pulse_10us : Bool;               // Toggles every 10 microseconds
+            Pulse_100us : Bool;              // Toggles every 100 microseconds
+         END_STRUCT;
+
+         // Millisecond range pulses
+         Milliseconds : Struct
+            Pulse_1ms : Bool;                // Toggles every 1 millisecond
+            Pulse_10ms : Bool;               // Toggles every 10 milliseconds
+            Pulse_100ms : Bool;              // Toggles every 100 milliseconds
+         END_STRUCT;
+
+         // Second range pulses
+         Seconds : Struct
+            Pulse_1s : Bool;                 // Toggles every 1 second
+            Pulse_10s : Bool;                // Toggles every 10 seconds
+         END_STRUCT;
+
+         // Minute range pulses
+         Minutes : Struct
+            Pulse_1min : Bool;               // Toggles every 1 minute
+            Pulse_10min : Bool;              // Toggles every 10 minutes
+         END_STRUCT;
+
+         // Hour range pulses
+         Hours : Struct
+            Pulse_1h : Bool;                 // Toggles every 1 hour
+         END_STRUCT;
+
+         // Day range pulses
+         Days : Struct
+            Pulse_1d : Bool;                 // Toggles every 1 day
+            Pulse_7d : Bool;                 // Toggles every 7 days (1 week)
+         END_STRUCT;
+
+         // Month range pulses
+         Months : Struct
+            Pulse_30d : Bool;                // Toggles every 30 days (approx. 1 month)
+         END_STRUCT;
+
+         // Year range pulses
+         Years : Struct
+            Pulse_365d : Bool;               // Toggles every 365 days (1 year)
+         END_STRUCT;
+
+         // Custom pulse
+         Custom : Struct
+            Pulse : Bool;                    // Toggles based on CustomTime input
+            Active : Bool;                   // Indicates if custom time is configured
+         END_STRUCT;
+      END_STRUCT;
+
+      // =====================================================================
+      // STATUS INFORMATION
+      // =====================================================================
+      Status : Struct
+         IsEnabled : Bool;                   // Indicates if FB is enabled
+         IsInitialized : Bool;               // Indicates if FB is initialized
+         CustomTimeActive : Bool;            // Indicates if custom time is configured
+         CycleTime_us : UDInt;               // Current cycle time in microseconds
+      END_STRUCT;
+
+      // =====================================================================
+      // INTERNAL DATA (Not for external use)
+      // =====================================================================
+      Internal : Struct
+         // Elapsed times for microsecond range
+         ElapsedMicroseconds : Struct
+            Time_1us : LTime;
+            Time_10us : LTime;
+            Time_100us : LTime;
+         END_STRUCT;
+
+         // Elapsed times for millisecond range
+         ElapsedMilliseconds : Struct
+            Time_1ms : LTime;
+            Time_10ms : LTime;
+            Time_100ms : LTime;
+         END_STRUCT;
+
+         // Elapsed times for second range
+         ElapsedSeconds : Struct
+            Time_1s : LTime;
+            Time_10s : LTime;
+         END_STRUCT;
+
+         // Elapsed times for minute range
+         ElapsedMinutes : Struct
+            Time_1min : LTime;
+            Time_10min : LTime;
+         END_STRUCT;
+
+         // Elapsed times for hour range
+         ElapsedHours : Struct
+            Time_1h : LTime;
+         END_STRUCT;
+
+         // Elapsed times for day range
+         ElapsedDays : Struct
+            Time_1d : LTime;
+            Time_7d : LTime;
+         END_STRUCT;
+
+         // Elapsed times for month range
+         ElapsedMonths : Struct
+            Time_30d : LTime;
+         END_STRUCT;
+
+         // Elapsed times for year range
+         ElapsedYears : Struct
+            Time_365d : LTime;
+         END_STRUCT;
+
+         // Custom time tracking
+         ElapsedCustom : LTime;
+
+         // System timing
+         PrevCycleTime : LTime;              // Previous cycle timestamp
+         Initialized : Bool;                 // Initialization flag
+         LastScanTime : LTime;               // Last scan timestamp for delta calculation
+      END_STRUCT;
+
+      // =====================================================================
+      // TIME CONSTANTS (Pre-configured values)
+      // =====================================================================
+      TimeConst : Struct
+         // Microsecond constants
+         Microseconds : Struct
+            TIME_1US : LTime := LTIME#1US;
+            TIME_10US : LTime := LTIME#10US;
+            TIME_100US : LTime := LTIME#100US;
+         END_STRUCT;
+
+         // Millisecond constants
+         Milliseconds : Struct
+            TIME_1MS : LTime := LTIME#1MS;
+            TIME_10MS : LTime := LTIME#10MS;
+            TIME_100MS : LTime := LTIME#100MS;
+         END_STRUCT;
+
+         // Second constants
+         Seconds : Struct
+            TIME_1S : LTime := LTIME#1S;
+            TIME_10S : LTime := LTIME#10S;
+         END_STRUCT;
+
+         // Minute constants
+         Minutes : Struct
+            TIME_1MIN : LTime := LTIME#1M;
+            TIME_10MIN : LTime := LTIME#10M;
+         END_STRUCT;
+
+         // Hour constants
+         Hours : Struct
+            TIME_1H : LTime := LTIME#1H;
+         END_STRUCT;
+
+         // Day constants
+         Days : Struct
+            TIME_1D : LTime := LTIME#24H;
+            TIME_7D : LTime := LTIME#168H;   // 7 days = 168 hours
+         END_STRUCT;
+
+         // Month constants (using LTime for extended range)
+         Months : Struct
+            TIME_30D : LTime := LTIME#720H;  // 30 days = 720 hours
+         END_STRUCT;
+
+         // Year constants (using LTime for extended range)
+         Years : Struct
+            TIME_365D : LTime := LTIME#8760H; // 365 days = 8760 hours
+         END_STRUCT;
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE

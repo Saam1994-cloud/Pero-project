@@ -1,0 +1,442 @@
+// =============================================================================
+// Example Usage of General_FB v3.0 with Single UDT Structure
+// =============================================================================
+// Version 3.0 uses ONE UDT (UDT_General_FB) for everything - much simpler!
+// =============================================================================
+
+ORGANIZATION_BLOCK "Main"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR
+      // ======================================================================
+      // TIME MANAGER INSTANCE - Only ONE UDT needed!
+      // ======================================================================
+      TimeManager : "General_FB";
+
+      // ======================================================================
+      // EDGE DETECTION BLOCKS
+      // ======================================================================
+      Edge_1s : R_TRIG;
+      Edge_1min : R_TRIG;
+      Edge_1h : R_TRIG;
+
+      // ======================================================================
+      // APPLICATION VARIABLES
+      // ======================================================================
+
+      // LED/Indicator outputs
+      LED_FastBlink : Bool;           // Fast blink (100ms)
+      LED_SlowBlink : Bool;           // Slow blink (1 second)
+      LED_CustomBlink : Bool;         // Custom rate blink
+
+      // Counters
+      Counter_Seconds : Int;
+      Counter_Minutes : Int;
+      Counter_Hours : Int;
+
+      // Control flags
+      SystemEnabled : Bool := TRUE;
+      ResetAllCounters : Bool;
+
+   END_VAR
+
+BEGIN
+   //==========================================================================
+   // CALL TIME MANAGER - Simple inputs!
+   //==========================================================================
+
+   TimeManager(
+      Enable := #SystemEnabled,
+      CustomTime := LTIME#1S500MS,      // 1.5 seconds custom interval
+      ResetCounters := #ResetAllCounters
+   );
+
+   // Reset flag after use
+   IF #ResetAllCounters THEN
+      #ResetAllCounters := FALSE;
+   END_IF;
+
+   //==========================================================================
+   // EXAMPLE 1: DIRECT PULSE USAGE FOR LED BLINKING
+   //==========================================================================
+
+   // Access pulses through TimeManager.Data.Pulses structure
+   #LED_FastBlink := #TimeManager.Data.Pulses.Milliseconds.Pulse_100ms;
+   #LED_SlowBlink := #TimeManager.Data.Pulses.Seconds.Pulse_1s;
+   #LED_CustomBlink := #TimeManager.Data.Pulses.Custom.Pulse;
+
+   //==========================================================================
+   // EXAMPLE 2: EVENT COUNTING WITH EDGE DETECTION
+   //==========================================================================
+
+   // Count seconds
+   #Edge_1s(CLK := #TimeManager.Data.Pulses.Seconds.Pulse_1s);
+   IF #Edge_1s.Q THEN
+      #Counter_Seconds := #Counter_Seconds + 1;
+
+      // Reset counter at 60 seconds
+      IF #Counter_Seconds >= 60 THEN
+         #Counter_Seconds := 0;
+      END_IF;
+   END_IF;
+
+   // Count minutes
+   #Edge_1min(CLK := #TimeManager.Data.Pulses.Minutes.Pulse_1min);
+   IF #Edge_1min.Q THEN
+      #Counter_Minutes := #Counter_Minutes + 1;
+
+      // Reset counter at 60 minutes
+      IF #Counter_Minutes >= 60 THEN
+         #Counter_Minutes := 0;
+      END_IF;
+   END_IF;
+
+   // Count hours
+   #Edge_1h(CLK := #TimeManager.Data.Pulses.Hours.Pulse_1h);
+   IF #Edge_1h.Q THEN
+      #Counter_Hours := #Counter_Hours + 1;
+
+      // Reset counter at 24 hours
+      IF #Counter_Hours >= 24 THEN
+         #Counter_Hours := 0;
+      END_IF;
+   END_IF;
+
+   //==========================================================================
+   // EXAMPLE 3: STATUS MONITORING
+   //==========================================================================
+
+   // Monitor FB status through Data.Status
+   IF NOT #TimeManager.Data.Status.IsInitialized THEN
+      // Handle uninitialized state
+      ;
+   END_IF;
+
+   IF NOT #TimeManager.Data.Status.IsEnabled THEN
+      // Handle disabled state
+      ;
+   END_IF;
+
+   // Display cycle time in HMI
+   "HMI_CycleTime_us" := #TimeManager.Data.Status.CycleTime_us;
+
+   // Check if custom time is active
+   IF #TimeManager.Data.Status.CustomTimeActive THEN
+      // Custom time is configured
+      ;
+   END_IF;
+
+END_ORGANIZATION_BLOCK
+
+
+// =============================================================================
+// EXAMPLE: DATA LOGGER FUNCTION
+// =============================================================================
+
+FUNCTION_BLOCK "DataLogger_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_IN_OUT
+      TimeManager : "General_FB";
+   END_VAR
+
+   VAR_INPUT
+      DataToLog : Real;                    // Data value to log
+      EnableLogging : Bool := TRUE;        // Enable/disable logging
+   END_VAR;
+
+   VAR
+      // Edge detection for different logging intervals
+      Edge_10s : R_TRIG;
+      Edge_1min : R_TRIG;
+      Edge_1h : R_TRIG;
+
+      // Log buffers (simplified)
+      HighFreqLog : Array[0..99] of Real;     // 10-second interval log
+      MediumFreqLog : Array[0..99] of Real;   // 1-minute interval log
+      LowFreqLog : Array[0..99] of Real;      // 1-hour interval log
+
+      // Log indices
+      HighFreqIndex : Int;
+      MediumFreqIndex : Int;
+      LowFreqIndex : Int;
+
+      // Statistics
+      LogCount_10s : DInt;
+      LogCount_1min : DInt;
+      LogCount_1h : DInt;
+   END_VAR
+
+BEGIN
+   IF #EnableLogging THEN
+      //=======================================================================
+      // LOG EVERY 10 SECONDS
+      //=======================================================================
+      #Edge_10s(CLK := #TimeManager.Data.Pulses.Seconds.Pulse_10s);
+      IF #Edge_10s.Q THEN
+         #HighFreqLog[#HighFreqIndex] := #DataToLog;
+         #HighFreqIndex := #HighFreqIndex + 1;
+         #LogCount_10s := #LogCount_10s + 1;
+
+         // Wrap around buffer
+         IF #HighFreqIndex >= 100 THEN
+            #HighFreqIndex := 0;
+         END_IF;
+      END_IF;
+
+      //=======================================================================
+      // LOG EVERY MINUTE
+      //=======================================================================
+      #Edge_1min(CLK := #TimeManager.Data.Pulses.Minutes.Pulse_1min);
+      IF #Edge_1min.Q THEN
+         #MediumFreqLog[#MediumFreqIndex] := #DataToLog;
+         #MediumFreqIndex := #MediumFreqIndex + 1;
+         #LogCount_1min := #LogCount_1min + 1;
+
+         // Wrap around buffer
+         IF #MediumFreqIndex >= 100 THEN
+            #MediumFreqIndex := 0;
+         END_IF;
+      END_IF;
+
+      //=======================================================================
+      // LOG EVERY HOUR
+      //=======================================================================
+      #Edge_1h(CLK := #TimeManager.Data.Pulses.Hours.Pulse_1h);
+      IF #Edge_1h.Q THEN
+         #LowFreqLog[#LowFreqIndex] := #DataToLog;
+         #LowFreqIndex := #LowFreqIndex + 1;
+         #LogCount_1h := #LogCount_1h + 1;
+
+         // Wrap around buffer
+         IF #LowFreqIndex >= 100 THEN
+            #LowFreqIndex := 0;
+         END_IF;
+      END_IF;
+   END_IF;
+
+END_FUNCTION_BLOCK
+
+
+// =============================================================================
+// EXAMPLE: ALARM BLINK CONTROLLER
+// =============================================================================
+
+FUNCTION_BLOCK "AlarmController_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_IN_OUT
+      TimeManager : "General_FB";
+   END_VAR
+
+   VAR_INPUT
+      CriticalAlarm : Bool;          // Critical alarm active
+      WarningAlarm : Bool;           // Warning alarm active
+      InfoAlarm : Bool;              // Info alarm active
+   END_VAR
+
+   VAR_OUTPUT
+      CriticalAlarmBlink : Bool;     // Fast blink for critical alarms
+      WarningAlarmBlink : Bool;      // Medium blink for warnings
+      InfoAlarmBlink : Bool;         // Slow blink for info
+      AlarmBeep : Bool;              // Beep output
+   END_VAR
+
+BEGIN
+   //==========================================================================
+   // CRITICAL ALARM - FAST BLINK (100ms)
+   //==========================================================================
+   IF #CriticalAlarm THEN
+      #CriticalAlarmBlink := #TimeManager.Data.Pulses.Milliseconds.Pulse_100ms;
+      #AlarmBeep := #TimeManager.Data.Pulses.Milliseconds.Pulse_100ms;
+   ELSE
+      #CriticalAlarmBlink := FALSE;
+   END_IF;
+
+   //==========================================================================
+   // WARNING ALARM - MEDIUM BLINK (1 second)
+   //==========================================================================
+   IF #WarningAlarm AND NOT #CriticalAlarm THEN
+      #WarningAlarmBlink := #TimeManager.Data.Pulses.Seconds.Pulse_1s;
+      #AlarmBeep := #TimeManager.Data.Pulses.Seconds.Pulse_1s;
+   ELSE
+      #WarningAlarmBlink := FALSE;
+   END_IF;
+
+   //==========================================================================
+   // INFO ALARM - SLOW BLINK (10 seconds)
+   //==========================================================================
+   IF #InfoAlarm AND NOT #WarningAlarm AND NOT #CriticalAlarm THEN
+      #InfoAlarmBlink := #TimeManager.Data.Pulses.Seconds.Pulse_10s;
+      #AlarmBeep := FALSE;  // No beep for info
+   ELSE
+      #InfoAlarmBlink := FALSE;
+   END_IF;
+
+   // Clear beep if no alarms
+   IF NOT #CriticalAlarm AND NOT #WarningAlarm THEN
+      #AlarmBeep := FALSE;
+   END_IF;
+
+END_FUNCTION_BLOCK
+
+
+// =============================================================================
+// EXAMPLE: HEARTBEAT MONITOR
+// =============================================================================
+
+FUNCTION_BLOCK "HeartbeatMonitor_FB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+   VAR_IN_OUT
+      TimeManager : "General_FB";
+   END_VAR
+
+   VAR_OUTPUT
+      SystemHeartbeat_1s : Bool;      // 1 second heartbeat
+      SystemHeartbeat_100ms : Bool;   // 100ms heartbeat (fast pulse)
+      CommunicationOK : Bool;         // Communication status
+   END_VAR
+
+   VAR
+      HeartbeatCounter : DInt;        // Total heartbeat count
+      Edge_1s : R_TRIG;
+   END_VAR
+
+BEGIN
+   // Generate heartbeat pulses
+   #SystemHeartbeat_1s := #TimeManager.Data.Pulses.Seconds.Pulse_1s;
+   #SystemHeartbeat_100ms := #TimeManager.Data.Pulses.Milliseconds.Pulse_100ms;
+
+   // Count heartbeats
+   #Edge_1s(CLK := #SystemHeartbeat_1s);
+   IF #Edge_1s.Q THEN
+      #HeartbeatCounter := #HeartbeatCounter + 1;
+   END_IF;
+
+   // Communication OK if time manager is running
+   #CommunicationOK := #TimeManager.Data.Status.IsEnabled AND
+                       #TimeManager.Data.Status.IsInitialized;
+
+END_FUNCTION_BLOCK
+
+
+// =============================================================================
+// SIMPLE USAGE EXAMPLES
+// =============================================================================
+
+(*
+   VERSION 3.0 SIMPLIFICATION - Only ONE UDT!
+   ==========================================
+
+   1. IMPORT TO TIA PORTAL:
+      - Import UDT_General_FB.scl first (only 1 UDT file!)
+      - Import General_FB_v3.scl
+
+   2. DECLARE IN YOUR CODE:
+      VAR
+         TimeManager : General_FB;
+      END_VAR
+
+   3. CALL THE FB:
+      TimeManager(
+         Enable := TRUE,
+         CustomTime := LTIME#1S500MS,
+         ResetCounters := FALSE
+      );
+
+   4. ACCESS PULSES:
+      LED := TimeManager.Data.Pulses.Seconds.Pulse_1s;
+      Custom := TimeManager.Data.Pulses.Custom.Pulse;
+
+   5. CHECK STATUS:
+      IsRunning := TimeManager.Data.Status.IsEnabled;
+      CycleTime := TimeManager.Data.Status.CycleTime_us;
+
+
+   ACCESSING ALL PULSES:
+   =====================
+
+   Microsecond Pulses:
+   - TimeManager.Data.Pulses.Microseconds.Pulse_1us
+   - TimeManager.Data.Pulses.Microseconds.Pulse_10us
+   - TimeManager.Data.Pulses.Microseconds.Pulse_100us
+
+   Millisecond Pulses:
+   - TimeManager.Data.Pulses.Milliseconds.Pulse_1ms
+   - TimeManager.Data.Pulses.Milliseconds.Pulse_10ms
+   - TimeManager.Data.Pulses.Milliseconds.Pulse_100ms
+
+   Second Pulses:
+   - TimeManager.Data.Pulses.Seconds.Pulse_1s
+   - TimeManager.Data.Pulses.Seconds.Pulse_10s
+
+   Minute Pulses:
+   - TimeManager.Data.Pulses.Minutes.Pulse_1min
+   - TimeManager.Data.Pulses.Minutes.Pulse_10min
+
+   Hour Pulses:
+   - TimeManager.Data.Pulses.Hours.Pulse_1h
+
+   Day Pulses:
+   - TimeManager.Data.Pulses.Days.Pulse_1d
+   - TimeManager.Data.Pulses.Days.Pulse_7d (week)
+
+   Month Pulses:
+   - TimeManager.Data.Pulses.Months.Pulse_30d
+
+   Year Pulses:
+   - TimeManager.Data.Pulses.Years.Pulse_365d (NOW WORKS!)
+
+   Custom Pulse:
+   - TimeManager.Data.Pulses.Custom.Pulse
+   - TimeManager.Data.Pulses.Custom.Active
+
+
+   LTIME FORMAT EXAMPLES:
+   =====================
+
+   Microseconds:    LTIME#1US, LTIME#100US
+   Milliseconds:    LTIME#1MS, LTIME#500MS
+   Seconds:         LTIME#1S, LTIME#30S
+   Minutes:         LTIME#1M, LTIME#5M
+   Hours:           LTIME#1H, LTIME#12H
+   Days:            LTIME#1D, LTIME#7D, LTIME#30D, LTIME#365D
+
+   Complex:         LTIME#1S500MS  (1.5 seconds)
+                    LTIME#2M30S    (2.5 minutes)
+                    LTIME#1H30M    (1.5 hours)
+
+
+   STATUS INFORMATION:
+   ===================
+
+   - TimeManager.Data.Status.IsEnabled         : FB is enabled
+   - TimeManager.Data.Status.IsInitialized     : FB is initialized
+   - TimeManager.Data.Status.CustomTimeActive  : Custom time configured
+   - TimeManager.Data.Status.CycleTime_us      : Cycle time in microseconds
+
+
+   CONFIGURATION:
+   ==============
+
+   - TimeManager.Data.Config.Enable            : Enable/disable FB
+   - TimeManager.Data.Config.CustomTime        : Custom time value
+   - TimeManager.Data.Config.ResetCounters     : Reset all timers
+
+
+   WHY VERSION 3.0 IS BETTER:
+   ==========================
+
+   ✓ Only ONE UDT file to import (not 4!)
+   ✓ Everything organized in one structure
+   ✓ Simpler to use
+   ✓ All data accessible through .Data property
+   ✓ Professional structure maintained
+   ✓ LTime support for month/year pulses
+
+*)
