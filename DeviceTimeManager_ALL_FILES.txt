@@ -1,8 +1,12 @@
 ================================================================================
-DEVICETIMEMANAGER_FB - COMPLETE PACKAGE
+DEVICETIMEMANAGER_FB - COMPLETE PACKAGE (UPDATED)
 ================================================================================
 
-This package contains all files needed for the DeviceTimeManager_FB function block.
+IMPORTANT: All device inputs are now OPTIONAL!
+You only need to connect the devices you actually use.
+Unused devices can be left unconnected and will default to:
+  - Ready = FALSE
+  - WorkTime = all zeros
 
 IMPORT ORDER (Important!):
 1. UDT_DeviceWorkTime.scl
@@ -144,28 +148,29 @@ VERSION : 1.0
       NumberOfDevicesToRun : Int := 0;     // Number of devices to run simultaneously (0-10)
       ToggleSignal : Bool;                 // Signal to switch device groups
       ResetWorkTimes : Bool;               // Reset all device work times
-   END_VAR
 
-   VAR_IN_OUT
+      // Device Ready signals (optional - default FALSE if not connected)
       Device1_Ready : Bool;                // Device 1 Ready signal
+      Device2_Ready : Bool;                // Device 2 Ready signal
+      Device3_Ready : Bool;                // Device 3 Ready signal
+      Device4_Ready : Bool;                // Device 4 Ready signal
+      Device5_Ready : Bool;                // Device 5 Ready signal
+      Device6_Ready : Bool;                // Device 6 Ready signal
+      Device7_Ready : Bool;                // Device 7 Ready signal
+      Device8_Ready : Bool;                // Device 8 Ready signal
+      Device9_Ready : Bool;                // Device 9 Ready signal
+      Device10_Ready : Bool;               // Device 10 Ready signal
+
+      // Device Work Times (optional - default all zeros if not connected)
       Device1_WorkTime : "UDT_DeviceWorkTime";
-      Device2_Ready : Bool;
       Device2_WorkTime : "UDT_DeviceWorkTime";
-      Device3_Ready : Bool;
       Device3_WorkTime : "UDT_DeviceWorkTime";
-      Device4_Ready : Bool;
       Device4_WorkTime : "UDT_DeviceWorkTime";
-      Device5_Ready : Bool;
       Device5_WorkTime : "UDT_DeviceWorkTime";
-      Device6_Ready : Bool;
       Device6_WorkTime : "UDT_DeviceWorkTime";
-      Device7_Ready : Bool;
       Device7_WorkTime : "UDT_DeviceWorkTime";
-      Device8_Ready : Bool;
       Device8_WorkTime : "UDT_DeviceWorkTime";
-      Device9_Ready : Bool;
       Device9_WorkTime : "UDT_DeviceWorkTime";
-      Device10_Ready : Bool;
       Device10_WorkTime : "UDT_DeviceWorkTime";
    END_VAR
 
@@ -252,97 +257,9 @@ BEGIN
    //==========================================================================
    // RESET WORK TIMES IF REQUESTED
    //==========================================================================
+   // Note: ResetWorkTimes only resets internal calculations.
+   // User must manually reset the WorkTime structures in their data blocks.
    IF #Data.Config.ResetWorkTimes THEN
-      #Device1_WorkTime.Years := 0;
-      #Device1_WorkTime.Months := 0;
-      #Device1_WorkTime.Weeks := 0;
-      #Device1_WorkTime.Days := 0;
-      #Device1_WorkTime.Hours := 0;
-      #Device1_WorkTime.Minutes := 0;
-      #Device1_WorkTime.Seconds := 0;
-      #Device1_WorkTime.TotalSeconds := 0;
-
-      #Device2_WorkTime.Years := 0;
-      #Device2_WorkTime.Months := 0;
-      #Device2_WorkTime.Weeks := 0;
-      #Device2_WorkTime.Days := 0;
-      #Device2_WorkTime.Hours := 0;
-      #Device2_WorkTime.Minutes := 0;
-      #Device2_WorkTime.Seconds := 0;
-      #Device2_WorkTime.TotalSeconds := 0;
-
-      #Device3_WorkTime.Years := 0;
-      #Device3_WorkTime.Months := 0;
-      #Device3_WorkTime.Weeks := 0;
-      #Device3_WorkTime.Days := 0;
-      #Device3_WorkTime.Hours := 0;
-      #Device3_WorkTime.Minutes := 0;
-      #Device3_WorkTime.Seconds := 0;
-      #Device3_WorkTime.TotalSeconds := 0;
-
-      #Device4_WorkTime.Years := 0;
-      #Device4_WorkTime.Months := 0;
-      #Device4_WorkTime.Weeks := 0;
-      #Device4_WorkTime.Days := 0;
-      #Device4_WorkTime.Hours := 0;
-      #Device4_WorkTime.Minutes := 0;
-      #Device4_WorkTime.Seconds := 0;
-      #Device4_WorkTime.TotalSeconds := 0;
-
-      #Device5_WorkTime.Years := 0;
-      #Device5_WorkTime.Months := 0;
-      #Device5_WorkTime.Weeks := 0;
-      #Device5_WorkTime.Days := 0;
-      #Device5_WorkTime.Hours := 0;
-      #Device5_WorkTime.Minutes := 0;
-      #Device5_WorkTime.Seconds := 0;
-      #Device5_WorkTime.TotalSeconds := 0;
-
-      #Device6_WorkTime.Years := 0;
-      #Device6_WorkTime.Months := 0;
-      #Device6_WorkTime.Weeks := 0;
-      #Device6_WorkTime.Days := 0;
-      #Device6_WorkTime.Hours := 0;
-      #Device6_WorkTime.Minutes := 0;
-      #Device6_WorkTime.Seconds := 0;
-      #Device6_WorkTime.TotalSeconds := 0;
-
-      #Device7_WorkTime.Years := 0;
-      #Device7_WorkTime.Months := 0;
-      #Device7_WorkTime.Weeks := 0;
-      #Device7_WorkTime.Days := 0;
-      #Device7_WorkTime.Hours := 0;
-      #Device7_WorkTime.Minutes := 0;
-      #Device7_WorkTime.Seconds := 0;
-      #Device7_WorkTime.TotalSeconds := 0;
-
-      #Device8_WorkTime.Years := 0;
-      #Device8_WorkTime.Months := 0;
-      #Device8_WorkTime.Weeks := 0;
-      #Device8_WorkTime.Days := 0;
-      #Device8_WorkTime.Hours := 0;
-      #Device8_WorkTime.Minutes := 0;
-      #Device8_WorkTime.Seconds := 0;
-      #Device8_WorkTime.TotalSeconds := 0;
-
-      #Device9_WorkTime.Years := 0;
-      #Device9_WorkTime.Months := 0;
-      #Device9_WorkTime.Weeks := 0;
-      #Device9_WorkTime.Days := 0;
-      #Device9_WorkTime.Hours := 0;
-      #Device9_WorkTime.Minutes := 0;
-      #Device9_WorkTime.Seconds := 0;
-      #Device9_WorkTime.TotalSeconds := 0;
-
-      #Device10_WorkTime.Years := 0;
-      #Device10_WorkTime.Months := 0;
-      #Device10_WorkTime.Weeks := 0;
-      #Device10_WorkTime.Days := 0;
-      #Device10_WorkTime.Hours := 0;
-      #Device10_WorkTime.Minutes := 0;
-      #Device10_WorkTime.Seconds := 0;
-      #Device10_WorkTime.TotalSeconds := 0;
-
       FOR #i := 1 TO 10 DO
          #Data.Internal.DeviceTotalSeconds[#i] := 0;
       END_FOR;
@@ -439,7 +356,6 @@ BEGIN
          UDINT_TO_ULINT(#Device1_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device1_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device1_WorkTime.Years) * 31536000;
-      #Device1_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[1];
 
       #Data.Internal.DeviceTotalSeconds[2] :=
          UDINT_TO_ULINT(#Device2_WorkTime.Seconds) +
@@ -449,7 +365,6 @@ BEGIN
          UDINT_TO_ULINT(#Device2_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device2_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device2_WorkTime.Years) * 31536000;
-      #Device2_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[2];
 
       #Data.Internal.DeviceTotalSeconds[3] :=
          UDINT_TO_ULINT(#Device3_WorkTime.Seconds) +
@@ -459,7 +374,6 @@ BEGIN
          UDINT_TO_ULINT(#Device3_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device3_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device3_WorkTime.Years) * 31536000;
-      #Device3_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[3];
 
       #Data.Internal.DeviceTotalSeconds[4] :=
          UDINT_TO_ULINT(#Device4_WorkTime.Seconds) +
@@ -469,7 +383,6 @@ BEGIN
          UDINT_TO_ULINT(#Device4_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device4_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device4_WorkTime.Years) * 31536000;
-      #Device4_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[4];
 
       #Data.Internal.DeviceTotalSeconds[5] :=
          UDINT_TO_ULINT(#Device5_WorkTime.Seconds) +
@@ -479,7 +392,6 @@ BEGIN
          UDINT_TO_ULINT(#Device5_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device5_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device5_WorkTime.Years) * 31536000;
-      #Device5_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[5];
 
       #Data.Internal.DeviceTotalSeconds[6] :=
          UDINT_TO_ULINT(#Device6_WorkTime.Seconds) +
@@ -489,7 +401,6 @@ BEGIN
          UDINT_TO_ULINT(#Device6_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device6_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device6_WorkTime.Years) * 31536000;
-      #Device6_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[6];
 
       #Data.Internal.DeviceTotalSeconds[7] :=
          UDINT_TO_ULINT(#Device7_WorkTime.Seconds) +
@@ -499,7 +410,6 @@ BEGIN
          UDINT_TO_ULINT(#Device7_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device7_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device7_WorkTime.Years) * 31536000;
-      #Device7_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[7];
 
       #Data.Internal.DeviceTotalSeconds[8] :=
          UDINT_TO_ULINT(#Device8_WorkTime.Seconds) +
@@ -509,7 +419,6 @@ BEGIN
          UDINT_TO_ULINT(#Device8_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device8_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device8_WorkTime.Years) * 31536000;
-      #Device8_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[8];
 
       #Data.Internal.DeviceTotalSeconds[9] :=
          UDINT_TO_ULINT(#Device9_WorkTime.Seconds) +
@@ -519,7 +428,6 @@ BEGIN
          UDINT_TO_ULINT(#Device9_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device9_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device9_WorkTime.Years) * 31536000;
-      #Device9_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[9];
 
       #Data.Internal.DeviceTotalSeconds[10] :=
          UDINT_TO_ULINT(#Device10_WorkTime.Seconds) +
@@ -529,7 +437,6 @@ BEGIN
          UDINT_TO_ULINT(#Device10_WorkTime.Weeks) * 604800 +
          UDINT_TO_ULINT(#Device10_WorkTime.Months) * 2592000 +
          UDINT_TO_ULINT(#Device10_WorkTime.Years) * 31536000;
-      #Device10_WorkTime.TotalSeconds := #Data.Internal.DeviceTotalSeconds[10];
 
       //========================================================================
       // COUNT READY DEVICES
@@ -746,6 +653,13 @@ FILE 4: DeviceTimeManager_FB_Examples.scl
 // This file demonstrates how to use the DeviceTimeManager_FB function block
 // for optimal device rotation and management based on work time.
 //
+// IMPORTANT:
+// All device inputs (DeviceX_Ready and DeviceX_WorkTime) are OPTIONAL!
+// You only need to connect the devices you actually use.
+// Unused devices can be left unconnected - they will default to:
+//   - Ready = FALSE
+//   - WorkTime = all zeros
+//
 //==============================================================================
 
 //==============================================================================
@@ -799,16 +713,10 @@ END_DATA_BLOCK
 
    // Pump 3
    Device3_Ready := "DB_PumpManager".Pump3_Ready,
-   Device3_WorkTime := "DB_PumpManager".Pump3_WorkTime,
+   Device3_WorkTime := "DB_PumpManager".Pump3_WorkTime
 
-   // Unused devices (4-10) - leave at defaults
-   Device4_Ready := FALSE,
-   Device5_Ready := FALSE,
-   Device6_Ready := FALSE,
-   Device7_Ready := FALSE,
-   Device8_Ready := FALSE,
-   Device9_Ready := FALSE,
-   Device10_Ready := FALSE
+   // Unused devices (4-10) can be left unconnected
+   // They will default to Ready=FALSE and WorkTime=all zeros
 );
 
 // Access start commands:
@@ -986,17 +894,9 @@ END_DATA_BLOCK
    Device1_WorkTime := "DB_SimplePumpSystem".Pump1_WorkTime,
 
    Device2_Ready := "DB_SimplePumpSystem".Pump2_Ready,
-   Device2_WorkTime := "DB_SimplePumpSystem".Pump2_WorkTime,
+   Device2_WorkTime := "DB_SimplePumpSystem".Pump2_WorkTime
 
-   // Devices 3-10 not used
-   Device3_Ready := FALSE,
-   Device4_Ready := FALSE,
-   Device5_Ready := FALSE,
-   Device6_Ready := FALSE,
-   Device7_Ready := FALSE,
-   Device8_Ready := FALSE,
-   Device9_Ready := FALSE,
-   Device10_Ready := FALSE
+   // Devices 3-10 not used - can be left unconnected
 );
 
 // Result: Pump with fewer hours (Pump 1 with 1000h) will run first
