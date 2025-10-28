@@ -1,0 +1,9 @@
+TYPE "UDT_General_FB_Config"
+VERSION : 0.1
+   STRUCT
+      Enable : Bool := true;        // Enable/Disable the function block
+      CustomTime : LTime;            // Custom time input (using LTime for extended range)
+      ResetCounters : Bool;          // Reset all internal counters and elapsed times
+   END_STRUCT;
+
+END_TYPE

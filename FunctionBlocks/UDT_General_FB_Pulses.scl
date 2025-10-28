@@ -1,0 +1,58 @@
+TYPE "UDT_General_FB_Pulses"
+VERSION : 0.1
+   STRUCT
+      // Microsecond range pulses
+      Microseconds : Struct
+         Pulse_1us : Bool;          // Toggles every 1 microsecond
+         Pulse_10us : Bool;         // Toggles every 10 microseconds
+         Pulse_100us : Bool;        // Toggles every 100 microseconds
+      END_STRUCT;
+
+      // Millisecond range pulses
+      Milliseconds : Struct
+         Pulse_1ms : Bool;          // Toggles every 1 millisecond
+         Pulse_10ms : Bool;         // Toggles every 10 milliseconds
+         Pulse_100ms : Bool;        // Toggles every 100 milliseconds
+      END_STRUCT;
+
+      // Second range pulses
+      Seconds : Struct
+         Pulse_1s : Bool;           // Toggles every 1 second
+         Pulse_10s : Bool;          // Toggles every 10 seconds
+      END_STRUCT;
+
+      // Minute range pulses
+      Minutes : Struct
+         Pulse_1min : Bool;         // Toggles every 1 minute
+         Pulse_10min : Bool;        // Toggles every 10 minutes
+      END_STRUCT;
+
+      // Hour range pulses
+      Hours : Struct
+         Pulse_1h : Bool;           // Toggles every 1 hour
+      END_STRUCT;
+
+      // Day range pulses
+      Days : Struct
+         Pulse_1d : Bool;           // Toggles every 1 day
+         Pulse_7d : Bool;           // Toggles every 7 days (1 week)
+      END_STRUCT;
+
+      // Month range pulses
+      Months : Struct
+         Pulse_30d : Bool;          // Toggles every 30 days (approx. 1 month)
+      END_STRUCT;
+
+      // Year range pulses
+      Years : Struct
+         Pulse_365d : Bool;         // Toggles every 365 days (1 year)
+      END_STRUCT;
+
+      // Custom pulse
+      Custom : Struct
+         Pulse : Bool;              // Toggles based on CustomTime input
+         Active : Bool;             // Indicates if custom time is configured
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE

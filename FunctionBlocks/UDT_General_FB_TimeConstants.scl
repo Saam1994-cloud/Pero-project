@@ -1,0 +1,52 @@
+TYPE "UDT_General_FB_TimeConstants"
+VERSION : 0.1
+   STRUCT
+      // Microsecond constants
+      Microseconds : Struct
+         TIME_1US : LTime := LTIME#1US;
+         TIME_10US : LTime := LTIME#10US;
+         TIME_100US : LTime := LTIME#100US;
+      END_STRUCT;
+
+      // Millisecond constants
+      Milliseconds : Struct
+         TIME_1MS : LTime := LTIME#1MS;
+         TIME_10MS : LTime := LTIME#10MS;
+         TIME_100MS : LTime := LTIME#100MS;
+      END_STRUCT;
+
+      // Second constants
+      Seconds : Struct
+         TIME_1S : LTime := LTIME#1S;
+         TIME_10S : LTime := LTIME#10S;
+      END_STRUCT;
+
+      // Minute constants
+      Minutes : Struct
+         TIME_1MIN : LTime := LTIME#1M;
+         TIME_10MIN : LTime := LTIME#10M;
+      END_STRUCT;
+
+      // Hour constants
+      Hours : Struct
+         TIME_1H : LTime := LTIME#1H;
+      END_STRUCT;
+
+      // Day constants
+      Days : Struct
+         TIME_1D : LTime := LTIME#24H;
+         TIME_7D : LTime := LTIME#168H;        // 7 days = 168 hours
+      END_STRUCT;
+
+      // Month constants (using LTime for extended range)
+      Months : Struct
+         TIME_30D : LTime := LTIME#720H;       // 30 days = 720 hours
+      END_STRUCT;
+
+      // Year constants (using LTime for extended range)
+      Years : Struct
+         TIME_365D : LTime := LTIME#8760H;     // 365 days = 8760 hours
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE

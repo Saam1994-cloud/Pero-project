@@ -1,0 +1,60 @@
+TYPE "UDT_General_FB_Internal"
+VERSION : 0.1
+   STRUCT
+      // Elapsed times for microsecond range
+      ElapsedMicroseconds : Struct
+         Time_1us : LTime;
+         Time_10us : LTime;
+         Time_100us : LTime;
+      END_STRUCT;
+
+      // Elapsed times for millisecond range
+      ElapsedMilliseconds : Struct
+         Time_1ms : LTime;
+         Time_10ms : LTime;
+         Time_100ms : LTime;
+      END_STRUCT;
+
+      // Elapsed times for second range
+      ElapsedSeconds : Struct
+         Time_1s : LTime;
+         Time_10s : LTime;
+      END_STRUCT;
+
+      // Elapsed times for minute range
+      ElapsedMinutes : Struct
+         Time_1min : LTime;
+         Time_10min : LTime;
+      END_STRUCT;
+
+      // Elapsed times for hour range
+      ElapsedHours : Struct
+         Time_1h : LTime;
+      END_STRUCT;
+
+      // Elapsed times for day range
+      ElapsedDays : Struct
+         Time_1d : LTime;
+         Time_7d : LTime;
+      END_STRUCT;
+
+      // Elapsed times for month range
+      ElapsedMonths : Struct
+         Time_30d : LTime;
+      END_STRUCT;
+
+      // Elapsed times for year range
+      ElapsedYears : Struct
+         Time_365d : LTime;
+      END_STRUCT;
+
+      // Custom time tracking
+      ElapsedCustom : LTime;
+
+      // System timing
+      PrevCycleTime : LTime;        // Previous cycle timestamp
+      Initialized : Bool;            // Initialization flag
+      LastScanTime : LTime;          // Last scan timestamp for delta calculation
+   END_STRUCT;
+
+END_TYPE
