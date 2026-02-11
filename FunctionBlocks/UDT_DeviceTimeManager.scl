@@ -1,0 +1,96 @@
+TYPE "UDT_DeviceTimeManager"
+VERSION : 1.0
+   STRUCT
+      // =====================================================================
+      // CONFIGURATION (Input Section)
+      // =====================================================================
+      Config : Struct
+         Enable : Bool := true;              // Enable/Disable the function block
+         NumberOfDevicesToRun : Int := 0;    // Number of devices to run simultaneously (0-10)
+         ToggleSignal : Bool;                // Signal to switch device groups (from General_FB)
+         ResetWorkTimes : Bool;              // Reset all device work times to zero
+      END_STRUCT;
+
+      // =====================================================================
+      // DEVICE OUTPUTS (Start Commands and Status)
+      // =====================================================================
+      DeviceOutputs : Struct
+         Device1_StartCommand : Bool;        // Start command for Device 1
+         Device1_IsRunning : Bool;           // Device 1 is currently running
+
+         Device2_StartCommand : Bool;        // Start command for Device 2
+         Device2_IsRunning : Bool;           // Device 2 is currently running
+
+         Device3_StartCommand : Bool;        // Start command for Device 3
+         Device3_IsRunning : Bool;           // Device 3 is currently running
+
+         Device4_StartCommand : Bool;        // Start command for Device 4
+         Device4_IsRunning : Bool;           // Device 4 is currently running
+
+         Device5_StartCommand : Bool;        // Start command for Device 5
+         Device5_IsRunning : Bool;           // Device 5 is currently running
+
+         Device6_StartCommand : Bool;        // Start command for Device 6
+         Device6_IsRunning : Bool;           // Device 6 is currently running
+
+         Device7_StartCommand : Bool;        // Start command for Device 7
+         Device7_IsRunning : Bool;           // Device 7 is currently running
+
+         Device8_StartCommand : Bool;        // Start command for Device 8
+         Device8_IsRunning : Bool;           // Device 8 is currently running
+
+         Device9_StartCommand : Bool;        // Start command for Device 9
+         Device9_IsRunning : Bool;           // Device 9 is currently running
+
+         Device10_StartCommand : Bool;       // Start command for Device 10
+         Device10_IsRunning : Bool;          // Device 10 is currently running
+      END_STRUCT;
+
+      // =====================================================================
+      // STATUS INFORMATION (Output Section)
+      // =====================================================================
+      Status : Struct
+         IsEnabled : Bool;                   // FB is enabled
+         IsInitialized : Bool;               // FB is initialized
+         ActiveDeviceCount : Int;            // Number of devices currently running
+         ReadyDeviceCount : Int;             // Number of ready devices available
+         InsufficientDevices : Bool;         // Warning: Not enough ready devices
+         RequestedDeviceCount : Int;         // Requested number of devices
+         MissingDeviceCount : Int;           // Number of missing devices (Requested - Active)
+         ToggleState : Bool;                 // Current toggle state
+         ToggleChangeDetected : Bool;        // Toggle signal has changed
+         LastError : Int;                    // Last error code (0 = no error)
+      END_STRUCT;
+
+      // =====================================================================
+      // INTERNAL DATA (Not for external use)
+      // =====================================================================
+      Internal : Struct
+         Initialized : Bool;                 // Initialization flag
+         PreviousToggleSignal : Bool;        // Previous toggle signal state
+         ToggleCount : UDInt;                // Number of toggle changes
+         CurrentGroup : Int;                 // Current device group (0 or 1)
+
+         // Device data arrays (internal copies)
+         DeviceReady : Array[1..10] of Bool;              // Internal copy of ready signals
+         DeviceTotalSeconds : Array[1..10] of ULInt;      // Calculated total seconds for each device
+
+         // Sorting and selection arrays
+         SortedIndices : Array[1..10] of Int;             // Device indices sorted by priority
+         DeviceSelected : Array[1..10] of Bool;           // Device selection flags
+
+         // Device selection tracking
+         PreviouslyRunningDevices : Array[1..10] of Bool; // Devices that were running before toggle
+         NewSelectionNeeded : Bool;          // Flag to indicate new device selection needed
+
+         // Temporary calculation variables
+         TempIndex : Int;                    // Temporary index for loops
+         TempValue : ULInt;                  // Temporary value for calculations
+         SwapIndex : Int;                    // Index for swap operations
+         MinWorkTime : ULInt;                // Minimum work time found
+         MaxWorkTime : ULInt;                // Maximum work time found
+      END_STRUCT;
+
+   END_STRUCT;
+
+END_TYPE

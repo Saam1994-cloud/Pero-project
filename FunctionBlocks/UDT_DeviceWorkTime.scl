@@ -1,0 +1,14 @@
+TYPE "UDT_DeviceWorkTime"
+VERSION : 1.0
+   STRUCT
+      Years : UDInt := 0;                  // Years of operation
+      Months : UDInt := 0;                 // Months of operation (0-11)
+      Weeks : UDInt := 0;                  // Weeks of operation (0-51)
+      Days : UDInt := 0;                   // Days of operation (0-6)
+      Hours : UDInt := 0;                  // Hours of operation (0-23)
+      Minutes : UDInt := 0;                // Minutes of operation (0-59)
+      Seconds : UDInt := 0;                // Seconds of operation (0-59)
+      TotalSeconds : ULInt := 0;           // Total seconds for comparison (calculated internally)
+   END_STRUCT;
+
+END_TYPE

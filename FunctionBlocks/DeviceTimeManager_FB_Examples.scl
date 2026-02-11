@@ -1,0 +1,364 @@
+//==============================================================================
+// DeviceTimeManager_FB - USAGE EXAMPLES
+//==============================================================================
+//
+// This file demonstrates how to use the DeviceTimeManager_FB function block
+// for optimal device rotation and management based on work time.
+//
+// IMPORTANT:
+// All device inputs (DeviceX_Ready and DeviceX_WorkTime) are OPTIONAL!
+// You only need to connect the devices you actually use.
+// Unused devices can be left unconnected - they will default to:
+//   - Ready = FALSE
+//   - WorkTime = all zeros
+//
+//==============================================================================
+
+//==============================================================================
+// EXAMPLE 1: Basic Setup - Managing 3 Pumps
+//==============================================================================
+//
+// Scenario: You have 3 water pumps and want to run 2 at a time, rotating
+//           based on their accumulated runtime.
+//
+// In your Data Block (DB), declare:
+
+DATA_BLOCK "DB_PumpManager"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+NON_RETAIN
+   VAR
+      // Pump work time tracking
+      Pump1_WorkTime : "UDT_DeviceWorkTime";
+      Pump2_WorkTime : "UDT_DeviceWorkTime";
+      Pump3_WorkTime : "UDT_DeviceWorkTime";
+
+      // Pump ready signals (from field)
+      Pump1_Ready : Bool;
+      Pump2_Ready : Bool;
+      Pump3_Ready : Bool;
+
+      // Function block instance
+      DeviceManager : "DeviceTimeManager_FB";
+
+      // General FB for toggle signal (daily rotation)
+      GeneralTimer : "General_FB";
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+// In your cyclic OB (e.g., OB1):
+
+"DB_PumpManager".DeviceManager(
+   Enable := TRUE,
+   NumberOfDevicesToRun := 2,                              // Run 2 pumps at a time
+   ToggleSignal := "DB_PumpManager".GeneralTimer.Data.Pulses.Days.Pulse_1d,  // Rotate daily
+   ResetWorkTimes := FALSE,
+
+   // Pump 1
+   Device1_Ready := "DB_PumpManager".Pump1_Ready,
+   Device1_WorkTime := "DB_PumpManager".Pump1_WorkTime,
+
+   // Pump 2
+   Device2_Ready := "DB_PumpManager".Pump2_Ready,
+   Device2_WorkTime := "DB_PumpManager".Pump2_WorkTime,
+
+   // Pump 3
+   Device3_Ready := "DB_PumpManager".Pump3_Ready,
+   Device3_WorkTime := "DB_PumpManager".Pump3_WorkTime
+
+   // Unused devices (4-10) can be left unconnected
+   // They will default to Ready=FALSE and WorkTime=all zeros
+);
+
+// Access start commands:
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device1_StartCommand -> Start Pump 1
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device2_StartCommand -> Start Pump 2
+// "DB_PumpManager".DeviceManager.Data.DeviceOutputs.Device3_StartCommand -> Start Pump 3
+
+// Check status:
+// "DB_PumpManager".DeviceManager.Data.Status.InsufficientDevices -> Warning flag
+// "DB_PumpManager".DeviceManager.Data.Status.ActiveDeviceCount -> Number running
+
+//==============================================================================
+// EXAMPLE 2: Advanced Setup - Managing 10 Compressors with Work Time Update
+//==============================================================================
+//
+// Scenario: Industrial facility with 10 compressors. Need to run 4-8 at once
+//           depending on demand. Track runtime and rotate weekly.
+//
+
+DATA_BLOCK "DB_CompressorSystem"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+NON_RETAIN
+   VAR
+      // Compressor work times
+      Compressor_WorkTime : Array[1..10] of "UDT_DeviceWorkTime";
+
+      // Compressor ready signals
+      Compressor_Ready : Array[1..10] of Bool;
+
+      // Compressor running time accumulators (for updating work time)
+      Compressor_RunTime : Array[1..10] of Time;
+
+      // System configuration
+      RequiredCompressors : Int := 6;        // Dynamic: changes with demand
+      EnableAutoRotation : Bool := TRUE;
+      ManualRotateTrigger : Bool := FALSE;   // Operator can trigger rotation
+
+      // Function blocks
+      CompressorManager : "DeviceTimeManager_FB";
+      GeneralTimer : "General_FB";
+
+      // Status displays
+      TotalReadyCompressors : Int;
+      RunningCompressors : Int;
+      WarningInsufficientUnits : Bool;
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+// In your cyclic OB:
+
+// Update work times based on actual runtime (example for Compressor 1)
+// This would typically be done in a separate function
+IF "DB_CompressorSystem".CompressorManager.Data.DeviceOutputs.Device1_IsRunning THEN
+   "DB_CompressorSystem".Compressor_RunTime[1] := "DB_CompressorSystem".Compressor_RunTime[1] + T#100MS;
+
+   // Convert accumulated time to work time structure
+   IF "DB_CompressorSystem".Compressor_RunTime[1] >= T#1S THEN
+      "DB_CompressorSystem".Compressor_WorkTime[1].Seconds :=
+         "DB_CompressorSystem".Compressor_WorkTime[1].Seconds + 1;
+      "DB_CompressorSystem".Compressor_RunTime[1] :=
+         "DB_CompressorSystem".Compressor_RunTime[1] - T#1S;
+
+      // Handle overflow
+      IF "DB_CompressorSystem".Compressor_WorkTime[1].Seconds >= 60 THEN
+         "DB_CompressorSystem".Compressor_WorkTime[1].Seconds := 0;
+         "DB_CompressorSystem".Compressor_WorkTime[1].Minutes :=
+            "DB_CompressorSystem".Compressor_WorkTime[1].Minutes + 1;
+      END_IF;
+
+      IF "DB_CompressorSystem".Compressor_WorkTime[1].Minutes >= 60 THEN
+         "DB_CompressorSystem".Compressor_WorkTime[1].Minutes := 0;
+         "DB_CompressorSystem".Compressor_WorkTime[1].Hours :=
+            "DB_CompressorSystem".Compressor_WorkTime[1].Hours + 1;
+      END_IF;
+
+      // Continue for Days, Weeks, Months, Years as needed...
+   END_IF;
+END_IF;
+
+// Call Device Manager
+"DB_CompressorSystem".CompressorManager(
+   Enable := "DB_CompressorSystem".EnableAutoRotation,
+   NumberOfDevicesToRun := "DB_CompressorSystem".RequiredCompressors,
+
+   // Toggle weekly OR on manual trigger
+   ToggleSignal := ("DB_CompressorSystem".GeneralTimer.Data.Pulses.Days.Pulse_7d OR
+                    "DB_CompressorSystem".ManualRotateTrigger),
+
+   ResetWorkTimes := FALSE,
+
+   // All 10 compressors
+   Device1_Ready := "DB_CompressorSystem".Compressor_Ready[1],
+   Device1_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[1],
+
+   Device2_Ready := "DB_CompressorSystem".Compressor_Ready[2],
+   Device2_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[2],
+
+   Device3_Ready := "DB_CompressorSystem".Compressor_Ready[3],
+   Device3_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[3],
+
+   Device4_Ready := "DB_CompressorSystem".Compressor_Ready[4],
+   Device4_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[4],
+
+   Device5_Ready := "DB_CompressorSystem".Compressor_Ready[5],
+   Device5_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[5],
+
+   Device6_Ready := "DB_CompressorSystem".Compressor_Ready[6],
+   Device6_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[6],
+
+   Device7_Ready := "DB_CompressorSystem".Compressor_Ready[7],
+   Device7_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[7],
+
+   Device8_Ready := "DB_CompressorSystem".Compressor_Ready[8],
+   Device8_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[8],
+
+   Device9_Ready := "DB_CompressorSystem".Compressor_Ready[9],
+   Device9_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[9],
+
+   Device10_Ready := "DB_CompressorSystem".Compressor_Ready[10],
+   Device10_WorkTime := "DB_CompressorSystem".Compressor_WorkTime[10]
+);
+
+// Update status displays
+"DB_CompressorSystem".TotalReadyCompressors :=
+   "DB_CompressorSystem".CompressorManager.Data.Status.ReadyDeviceCount;
+
+"DB_CompressorSystem".RunningCompressors :=
+   "DB_CompressorSystem".CompressorManager.Data.Status.ActiveDeviceCount;
+
+"DB_CompressorSystem".WarningInsufficientUnits :=
+   "DB_CompressorSystem".CompressorManager.Data.Status.InsufficientDevices;
+
+// Reset manual trigger after detection
+IF "DB_CompressorSystem".CompressorManager.Data.Status.ToggleChangeDetected THEN
+   "DB_CompressorSystem".ManualRotateTrigger := FALSE;
+END_IF;
+
+//==============================================================================
+// EXAMPLE 3: Simple 2-Pump Alternating System
+//==============================================================================
+//
+// Scenario: 2 pumps, run 1 at a time, alternate daily
+//
+
+DATA_BLOCK "DB_SimplePumpSystem"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+NON_RETAIN
+   VAR
+      Pump1_Ready : Bool := TRUE;
+      Pump1_WorkTime : "UDT_DeviceWorkTime";
+
+      Pump2_Ready : Bool := TRUE;
+      Pump2_WorkTime : "UDT_DeviceWorkTime";
+
+      PumpManager : "DeviceTimeManager_FB";
+      Timer : "General_FB";
+   END_VAR
+BEGIN
+   // Initialize work times from hour values
+   Pump1_WorkTime.Hours := 1000;           // Pump 1 has 1000 hours
+   Pump2_WorkTime.Hours := 1200;           // Pump 2 has 1200 hours
+END_DATA_BLOCK
+
+// In cyclic OB:
+"DB_SimplePumpSystem".PumpManager(
+   Enable := TRUE,
+   NumberOfDevicesToRun := 1,                             // Only 1 pump at a time
+   ToggleSignal := "DB_SimplePumpSystem".Timer.Data.Pulses.Days.Pulse_1d,
+   ResetWorkTimes := FALSE,
+
+   Device1_Ready := "DB_SimplePumpSystem".Pump1_Ready,
+   Device1_WorkTime := "DB_SimplePumpSystem".Pump1_WorkTime,
+
+   Device2_Ready := "DB_SimplePumpSystem".Pump2_Ready,
+   Device2_WorkTime := "DB_SimplePumpSystem".Pump2_WorkTime
+
+   // Devices 3-10 not used - can be left unconnected
+);
+
+// Result: Pump with fewer hours (Pump 1 with 1000h) will run first
+// After daily toggle, pumps will switch
+
+//==============================================================================
+// EXAMPLE 4: Handling Work Time Updates from Hours Meter
+//==============================================================================
+//
+// Function to convert total hours to WorkTime structure
+//
+
+FUNCTION "FC_HoursToWorkTime" : Void
+VERSION : 1.0
+   VAR_INPUT
+      TotalHours : UDInt;                    // Total operating hours
+   END_VAR
+
+   VAR_OUTPUT
+      WorkTime : "UDT_DeviceWorkTime";
+   END_VAR
+
+   VAR_TEMP
+      remainingHours : UDInt;
+   END_VAR
+
+BEGIN
+   #remainingHours := #TotalHours;
+
+   // Calculate years (8760 hours per year)
+   #WorkTime.Years := #remainingHours / 8760;
+   #remainingHours := #remainingHours MOD 8760;
+
+   // Calculate months (730 hours per month, approx)
+   #WorkTime.Months := #remainingHours / 730;
+   #remainingHours := #remainingHours MOD 730;
+
+   // Calculate weeks (168 hours per week)
+   #WorkTime.Weeks := #remainingHours / 168;
+   #remainingHours := #remainingHours MOD 168;
+
+   // Calculate days (24 hours per day)
+   #WorkTime.Days := #remainingHours / 24;
+   #remainingHours := #remainingHours MOD 24;
+
+   // Remaining hours
+   #WorkTime.Hours := #remainingHours;
+
+   // Minutes and seconds would come from separate tracking
+   #WorkTime.Minutes := 0;
+   #WorkTime.Seconds := 0;
+
+END_FUNCTION
+
+//==============================================================================
+// EXAMPLE 5: Integration with SCADA/HMI
+//==============================================================================
+//
+// Displaying status on HMI screen:
+//
+
+// Text display for operator:
+// "Active Devices: {Data.Status.ActiveDeviceCount} / {Data.Config.NumberOfDevicesToRun}"
+// "Ready Devices: {Data.Status.ReadyDeviceCount}"
+// "Warning: {Data.Status.InsufficientDevices}"
+
+// LED indicators:
+// Device1_LED := DeviceManager.Data.DeviceOutputs.Device1_IsRunning
+// Device2_LED := DeviceManager.Data.DeviceOutputs.Device2_IsRunning
+// ... etc
+
+// Alarm generation:
+IF "DeviceManager".Data.Status.InsufficientDevices THEN
+   // Trigger alarm: "Insufficient devices available for operation"
+   // Log event with missing count: Data.Status.MissingDeviceCount
+END_IF;
+
+//==============================================================================
+// NOTES AND BEST PRACTICES
+//==============================================================================
+//
+// 1. Work Time Tracking:
+//    - Update work times continuously when devices are running
+//    - Store work times in persistent (RETAIN) memory to survive power cycles
+//    - Use separate timer logic to accumulate runtime into the WorkTime structure
+//
+// 2. Ready Signal:
+//    - Connect to device feedback: running status, no faults, available
+//    - Include permissive conditions: not in maintenance, not failed
+//
+// 3. Toggle Signal:
+//    - Can use General_FB pulses for automatic rotation
+//    - Can use operator button for manual rotation
+//    - Can use process conditions (shift change, daily reset, etc.)
+//
+// 4. Number of Devices to Run:
+//    - Can be constant or variable based on demand
+//    - Should be validated (0-10 range)
+//    - Can be changed dynamically during operation
+//
+// 5. Monitoring:
+//    - Always monitor InsufficientDevices flag
+//    - Log toggle events for maintenance tracking
+//    - Track total runtime for maintenance scheduling
+//
+// 6. Testing:
+//    - Test with various combinations of ready devices
+//    - Test toggle functionality
+//    - Test with NumberOfDevicesToRun = 0 and = 10
+//    - Test with unequal work times
+//    - Verify priority: Ready > WorkTime > Device Number
+//
+//==============================================================================
